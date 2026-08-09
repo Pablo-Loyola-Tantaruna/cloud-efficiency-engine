@@ -1,0 +1,21 @@
+services:
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cloud-efficiency-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  cloud-efficiency-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cloud-efficiency-engine
+    ports:
+      - "8080:8080"
+    environment:
+      PROMETHEUS_URL: http://prometheus:9090
+    depends_on:
+      - prometheus

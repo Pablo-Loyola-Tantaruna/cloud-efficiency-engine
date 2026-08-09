@@ -1,0 +1,16 @@
+workloads:
+  - namespace: payments
+    name: payments-api
+    replicas: 3
+    cpu_request_millicores: 1000
+    cpu_usage_millicores: 180
+    memory_request_bytes: 2147483648
+    memory_usage_bytes: 671088640
+
+  - namespace: orders
+    name: orders-api
+    replicas: 2
+    cpu_request_millicores: 500
+    cpu_usage_millicores: 350
+    memory_request_bytes: 1073741824
+    memory_usage_bytes: 805306368
