@@ -35,18 +35,18 @@ func TestCPUOverprovisioningRule_WhenCPUUtilizationIsBelowThreshold_ShouldRecomm
 		)
 	}
 
-	if result.Severity != SeverityWarning {
+	if result.Severity != domain.SeverityWarning {
 		t.Errorf(
 			"expected severity %s, got %s",
-			SeverityWarning,
+			domain.SeverityWarning,
 			result.Severity,
 		)
 	}
 
-	if result.Confidence != ConfidenceHigh {
+	if result.Confidence != domain.ConfidenceHigh {
 		t.Errorf(
 			"expected confidence %s, got %s",
-			ConfidenceHigh,
+			domain.ConfidenceHigh,
 			result.Confidence,
 		)
 	}

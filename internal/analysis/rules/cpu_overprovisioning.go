@@ -21,7 +21,7 @@ func NewCPUOverprovisioningRule() CPUOverprovisioningRule {
 
 func (r CPUOverprovisioningRule) Evaluate(
 	workload domain.WorkloadMetrics,
-) *Recommendation {
+) *domain.Recommendation {
 
 	if workload.CPURequestMillicores <= 0 {
 		return nil
@@ -35,19 +35,25 @@ func (r CPUOverprovisioningRule) Evaluate(
 	}
 
 	suggestedRequest := int64(
-		math.Ceil(float64(workload.CPUUsageMillicores) / r.Threshold),
+		math.Ceil(
+			float64(workload.CPUUsageMillicores) / r.Threshold,
+		),
 	)
 
-	return &Recommendation{
-		Rule:     "CPU_OVERPROVISIONING",
-		Workload: fmt.Sprintf("%s/%s", workload.Namespace, workload.Name),
+	return &domain.Recommendation{
+		Rule: "CPU_OVERPROVISIONING",
+		Workload: fmt.Sprintf(
+			"%s/%s",
+			workload.Namespace,
+			workload.Name,
+		),
 		Description: fmt.Sprintf(
 			"CPU utilization is %.1f%% of the requested CPU. "+
 				"The workload may be overprovisioned.",
 			utilization*100,
 		),
-		Severity:                      SeverityWarning,
-		Confidence:                    ConfidenceHigh,
+		Severity:                      domain.SeverityWarning,
+		Confidence:                    domain.ConfidenceHigh,
 		CurrentCPURequestMillicores:   workload.CPURequestMillicores,
 		SuggestedCPURequestMillicores: suggestedRequest,
 	}

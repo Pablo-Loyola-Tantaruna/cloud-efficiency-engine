@@ -3,7 +3,6 @@ package cost
 import (
 	"math"
 
-	"cloud-efficiency-engine/internal/analysis/rules"
 	"cloud-efficiency-engine/internal/domain"
 )
 
@@ -32,7 +31,7 @@ func NewCalculator(pricing Pricing) *Calculator {
 
 func (c *Calculator) Estimate(
 	workload domain.WorkloadMetrics,
-	recommendations []rules.Recommendation,
+	recommendations []domain.Recommendation,
 ) CostEstimate {
 
 	current := c.workloadCost(
@@ -51,11 +50,13 @@ func (c *Calculator) Estimate(
 		}
 
 		if recommendation.SuggestedCPURequestMillicores > 0 {
-			optimizedCPU = recommendation.SuggestedCPURequestMillicores
+			optimizedCPU =
+				recommendation.SuggestedCPURequestMillicores
 		}
 
 		if recommendation.SuggestedMemoryRequestBytes > 0 {
-			optimizedMemory = recommendation.SuggestedMemoryRequestBytes
+			optimizedMemory =
+				recommendation.SuggestedMemoryRequestBytes
 		}
 	}
 
@@ -91,8 +92,13 @@ func (c *Calculator) workloadCost(
 	replicas int,
 ) float64 {
 
-	return c.cpuCost(cpuMillicores, replicas) +
-		c.memoryCost(memoryBytes, replicas)
+	return c.cpuCost(
+		cpuMillicores,
+		replicas,
+	) + c.memoryCost(
+		memoryBytes,
+		replicas,
+	)
 }
 
 func (c *Calculator) cpuCost(
@@ -123,7 +129,10 @@ func (c *Calculator) memoryCost(
 		c.pricing.HoursPerMonth
 }
 
-func workloadKey(workload domain.WorkloadMetrics) string {
+func workloadKey(
+	workload domain.WorkloadMetrics,
+) string {
+
 	return workload.Namespace + "/" + workload.Name
 }
 

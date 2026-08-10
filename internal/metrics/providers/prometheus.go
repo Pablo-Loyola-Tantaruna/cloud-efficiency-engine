@@ -17,6 +17,11 @@ type PrometheusProvider struct {
 	httpClient *http.Client
 }
 
+type prometheusResult struct {
+	Metric map[string]string
+	Value  []interface{}
+}
+
 func NewPrometheusProvider(
 	baseURL string,
 	httpClient *http.Client,
@@ -36,13 +41,12 @@ func NewPrometheusProvider(
 
 type prometheusResponse struct {
 	Status string `json:"status"`
-	Data   struct {
-		ResultType string `json:"resultType"`
-		Result     []struct {
-			Metric map[string]string `json:"metric"`
-			Value  []interface{}     `json:"value"`
-		} `json:"result"`
+
+	Data struct {
+		ResultType string             `json:"resultType"`
+		Result     []prometheusResult `json:"result"`
 	} `json:"data"`
+
 	ErrorType string `json:"errorType,omitempty"`
 	Error     string `json:"error,omitempty"`
 }
@@ -50,10 +54,7 @@ type prometheusResponse struct {
 func (p *PrometheusProvider) query(
 	ctx context.Context,
 	query string,
-) ([]struct {
-	Metric map[string]string
-	Value  []interface{}
-}, error) {
+) ([]prometheusResult, error) {
 
 	endpoint, err := url.Parse(
 		p.baseURL + "/api/v1/query",

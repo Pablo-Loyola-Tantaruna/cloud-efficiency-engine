@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"cloud-efficiency-engine/internal/cost"
 	"context"
 	"testing"
 
@@ -39,9 +40,18 @@ func TestAnalyzer_Analyze_ShouldReturnRecommendationsForOverprovisionedWorkloads
 		rules.NewMemoryOverprovisioningRule(),
 	}
 
+	pricing := cost.Pricing{
+		CPUPerCoreHour:  0.04,
+		MemoryPerGBHour: 0.005,
+		HoursPerMonth:   730,
+	}
+
+	calculator := cost.NewCalculator(pricing)
+
 	analyzer := NewAnalyzer(
 		provider,
 		optimizationRules,
+		calculator,
 	)
 
 	// Act

@@ -33,10 +33,10 @@ func TestMemoryOverprovisioningRule_WhenMemoryUtilizationIsBelowThreshold_Should
 		)
 	}
 
-	if result.Severity != SeverityWarning {
+	if result.Severity != domain.SeverityWarning {
 		t.Errorf(
 			"expected severity %s, got %s",
-			SeverityWarning,
+			domain.SeverityWarning,
 			result.Severity,
 		)
 	}

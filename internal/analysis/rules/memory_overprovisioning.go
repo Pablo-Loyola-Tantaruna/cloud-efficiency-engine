@@ -21,7 +21,7 @@ func NewMemoryOverprovisioningRule() MemoryOverprovisioningRule {
 
 func (r MemoryOverprovisioningRule) Evaluate(
 	workload domain.WorkloadMetrics,
-) *Recommendation {
+) *domain.Recommendation {
 
 	if workload.MemoryRequestBytes <= 0 {
 		return nil
@@ -35,19 +35,25 @@ func (r MemoryOverprovisioningRule) Evaluate(
 	}
 
 	suggestedRequest := int64(
-		math.Ceil(float64(workload.MemoryUsageBytes) / r.Threshold),
+		math.Ceil(
+			float64(workload.MemoryUsageBytes) / r.Threshold,
+		),
 	)
 
-	return &Recommendation{
-		Rule:     "MEMORY_OVERPROVISIONING",
-		Workload: fmt.Sprintf("%s/%s", workload.Namespace, workload.Name),
+	return &domain.Recommendation{
+		Rule: "MEMORY_OVERPROVISIONING",
+		Workload: fmt.Sprintf(
+			"%s/%s",
+			workload.Namespace,
+			workload.Name,
+		),
 		Description: fmt.Sprintf(
 			"Memory utilization is %.1f%% of the requested memory. "+
 				"The workload may be overprovisioned.",
 			utilization*100,
 		),
-		Severity:                    SeverityWarning,
-		Confidence:                  ConfidenceHigh,
+		Severity:                    domain.SeverityWarning,
+		Confidence:                  domain.ConfidenceHigh,
 		CurrentMemoryRequestBytes:   workload.MemoryRequestBytes,
 		SuggestedMemoryRequestBytes: suggestedRequest,
 	}
