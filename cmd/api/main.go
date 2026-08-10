@@ -15,7 +15,6 @@ import (
 )
 
 func main() {
-
 	optimizationRules := []rules.Rule{
 		rules.NewCPUOverprovisioningRule(),
 		rules.NewMemoryOverprovisioningRule(),
@@ -53,11 +52,9 @@ func main() {
 }
 
 func createMetricsProvider() metrics.Provider {
-
 	providerType := os.Getenv("METRICS_PROVIDER")
 
 	if providerType == "prometheus" {
-
 		prometheusURL := os.Getenv("PROMETHEUS_URL")
 
 		if prometheusURL == "" {
@@ -76,22 +73,21 @@ func createMetricsProvider() metrics.Provider {
 }
 
 func mockWorkloads() []domain.WorkloadMetrics {
-
 	return []domain.WorkloadMetrics{
-
 		{
 			Namespace:            "payments",
 			Name:                 "payments-api",
+			Type:                 domain.WorkloadDeployment,
 			Replicas:             3,
 			CPURequestMillicores: 1000,
 			CPUUsageMillicores:   180,
 			MemoryRequestBytes:   2 * 1024 * 1024 * 1024,
 			MemoryUsageBytes:     640 * 1024 * 1024,
 		},
-
 		{
 			Namespace:            "orders",
 			Name:                 "orders-api",
+			Type:                 domain.WorkloadDeployment,
 			Replicas:             2,
 			CPURequestMillicores: 500,
 			CPUUsageMillicores:   350,
