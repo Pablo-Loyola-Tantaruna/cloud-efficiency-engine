@@ -23,7 +23,7 @@ func mergeMetrics(
 		metric map[string]string,
 	) *workloadData {
 
-		namespace := metric["namespace"]
+		namespace := metric["namespace.yml"]
 		name := metric["workload"]
 
 		key := namespace + "/" + name

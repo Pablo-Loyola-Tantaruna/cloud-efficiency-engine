@@ -1,5 +1,6 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 rule_files:
   - /etc/prometheus/recording-rules.yml
@@ -10,4 +11,4 @@ scrape_configs:
 
     static_configs:
       - targets:
-          - prometheus:9090
+          - localhost:9090

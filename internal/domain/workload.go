@@ -11,7 +11,7 @@ const (
 )
 
 type WorkloadMetrics struct {
-	Namespace string       `json:"namespace"`
+	Namespace string       `json:"namespace.yml"`
 	Name      string       `json:"name"`
 	Type      WorkloadType `json:"type"`
 

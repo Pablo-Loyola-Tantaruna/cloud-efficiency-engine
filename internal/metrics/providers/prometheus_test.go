@@ -30,7 +30,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
     "result": [
       {
         "metric": {
-          "namespace": "payments",
+          "namespace.yml": "payments",
           "workload": "payments-api"
         },
         "value": [1700000000, "1000"]
@@ -48,7 +48,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
     "result": [
       {
         "metric": {
-          "namespace": "payments",
+          "namespace.yml": "payments",
           "workload": "payments-api"
         },
         "value": [1700000000, "180"]
@@ -66,7 +66,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
     "result": [
       {
         "metric": {
-          "namespace": "payments",
+          "namespace.yml": "payments",
           "workload": "payments-api"
         },
         "value": [1700000000, "2147483648"]
@@ -84,7 +84,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
     "result": [
       {
         "metric": {
-          "namespace": "payments",
+          "namespace.yml": "payments",
           "workload": "payments-api"
         },
         "value": [1700000000, "671088640"]
@@ -125,7 +125,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
 
 	if workload.Namespace != "payments" {
 		t.Errorf(
-			"expected namespace payments, got %s",
+			"expected namespace.yml payments, got %s",
 			workload.Namespace,
 		)
 	}
