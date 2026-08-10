@@ -1,0 +1,37 @@
+groups:
+
+  - name: cloud-efficiency-engine
+
+    interval: 30s
+
+    rules:
+
+      - record: cee_workload_cpu_request_millicores
+        expr: |
+          sum by (namespace, pod) (
+            kube_pod_container_resource_requests{
+              resource="cpu",
+              unit="core"
+            }
+          ) * 1000
+
+      - record: cee_workload_memory_request_bytes
+        expr: |
+          sum by (namespace, pod) (
+            kube_pod_container_resource_requests{
+              resource="memory",
+              unit="byte"
+            }
+          )
+
+      - record: cee_workload_cpu_usage_millicores
+        expr: |
+          sum by (namespace, pod) (
+            rate(container_cpu_usage_seconds_total[5m])
+          ) * 1000
+
+      - record: cee_workload_memory_usage_bytes
+        expr: |
+          sum by (namespace, pod) (
+            container_memory_working_set_bytes
+          )

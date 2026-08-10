@@ -17,6 +17,7 @@ type CostEstimate struct {
 	OptimizedMonthlyCostUSD float64 `json:"optimizedMonthlyCostUsd"`
 	PotentialSavingsUSD     float64 `json:"potentialSavingsUsd"`
 	SavingsPercentage       float64 `json:"savingsPercentage"`
+	AnnualizedSavingsUSD    float64 `json:"annualizedSavingsUsd"`
 }
 
 type Calculator struct {
@@ -83,6 +84,7 @@ func (c *Calculator) Estimate(
 		OptimizedMonthlyCostUSD: round(optimized),
 		PotentialSavingsUSD:     round(savings),
 		SavingsPercentage:       round(percentage),
+		AnnualizedSavingsUSD:    round(savings * 12),
 	}
 }
 

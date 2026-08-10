@@ -1,12 +1,13 @@
 services:
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.5.0
     container_name: cloud-efficiency-prometheus
     ports:
       - "9090:9090"
     volumes:
       - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deployments/prometheus/recording-rules.yml:/etc/prometheus/recording-rules.yml:ro
 
   cloud-efficiency-engine:
     build:
@@ -16,6 +17,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      METRICS_PROVIDER: prometheus
       PROMETHEUS_URL: http://prometheus:9090
     depends_on:
       - prometheus
