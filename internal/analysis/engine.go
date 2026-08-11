@@ -10,11 +10,14 @@ import (
 	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
 	"cloud-efficiency-engine/internal/metrics"
+	"cloud-efficiency-engine/internal/pricing"
 )
 
 type Engine struct {
 	provider           metrics.Provider
 	historicalProvider metrics.HistoricalProvider
+
+	pricingProvider pricing.Provider
 
 	rules []rules.Rule
 
@@ -27,6 +30,7 @@ type Engine struct {
 func NewEngine(
 	provider metrics.Provider,
 	historicalProvider metrics.HistoricalProvider,
+	pricingProvider pricing.Provider,
 	rules []rules.Rule,
 	optimizationPolicy optimizer.OptimizationPolicy,
 	recommendationResolver *resolver.Resolver,
@@ -34,14 +38,19 @@ func NewEngine(
 ) *Engine {
 
 	if recommendationResolver == nil {
+
 		recommendationResolver =
 			resolver.NewResolver()
 	}
 
 	return &Engine{
-		provider:           provider,
+		provider: provider,
+
 		historicalProvider: historicalProvider,
-		rules:              rules,
+
+		pricingProvider: pricingProvider,
+
+		rules: rules,
 
 		optimizer: optimizer.NewEngine(
 			optimizationPolicy,
@@ -86,15 +95,28 @@ func (e *Engine) Analyze(
 		}
 	}
 
-	report := &AnalysisReport{
-		GeneratedAt: time.Now().UTC(),
+	var prices pricing.ResourcePricing
 
-		Workloads: make(
-			[]WorkloadAnalysis,
-			0,
-			len(workloads),
-		),
+	if e.pricingProvider != nil {
+
+		prices, err =
+			e.pricingProvider.GetPricing(ctx)
+
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	report :=
+		&AnalysisReport{
+			GeneratedAt: time.Now().UTC(),
+
+			Workloads: make(
+				[]WorkloadAnalysis,
+				0,
+				len(workloads),
+			),
+		}
 
 	for _, workload := range workloads {
 
@@ -102,6 +124,7 @@ func (e *Engine) Analyze(
 			e.analyzeWorkload(
 				workload,
 				histories,
+				prices,
 			)
 
 		report.Workloads =
@@ -119,18 +142,20 @@ func (e *Engine) Analyze(
 func (e *Engine) analyzeWorkload(
 	workload domain.WorkloadMetrics,
 	histories []domain.WorkloadHistory,
+	prices pricing.ResourcePricing,
 ) WorkloadAnalysis {
 
-	result := WorkloadAnalysis{
-		Workload: workload,
+	result :=
+		WorkloadAnalysis{
+			Workload: workload,
 
-		Status: WorkloadAnalysisStatusInsufficientData,
+			Status: WorkloadAnalysisStatusInsufficientData,
 
-		Recommendations: make(
-			[]domain.Recommendation,
-			0,
-		),
-	}
+			Recommendations: make(
+				[]domain.Recommendation,
+				0,
+			),
+		}
 
 	if len(histories) == 0 {
 		return result
@@ -146,11 +171,9 @@ func (e *Engine) analyzeWorkload(
 		return result
 	}
 
-	result.History = history
+	result.History =
+		history
 
-	/*
-		1. Evaluate traditional rules.
-	*/
 	recommendations :=
 		make(
 			[]domain.Recommendation,
@@ -160,7 +183,9 @@ func (e *Engine) analyzeWorkload(
 	for _, rule := range e.rules {
 
 		recommendation :=
-			rule.Evaluate(workload)
+			rule.Evaluate(
+				workload,
+			)
 
 		if recommendation == nil {
 			continue
@@ -173,9 +198,6 @@ func (e *Engine) analyzeWorkload(
 			)
 	}
 
-	/*
-		2. Evaluate historical optimization.
-	*/
 	if e.optimizer != nil {
 
 		cpuRecommendation, err :=
@@ -235,9 +257,6 @@ func (e *Engine) analyzeWorkload(
 		}
 	}
 
-	/*
-		3. Resolve conflicting recommendations.
-	*/
 	if e.resolver != nil {
 
 		recommendations =
@@ -249,15 +268,13 @@ func (e *Engine) analyzeWorkload(
 	result.Recommendations =
 		recommendations
 
-	/*
-		4. Calculate financial impact.
-	*/
 	if e.costCalculator != nil {
 
 		estimate :=
 			e.costCalculator.Estimate(
 				workload,
-				result.Recommendations,
+				recommendations,
+				prices,
 			)
 
 		result.Cost =
@@ -281,7 +298,8 @@ func (e *Engine) calculateSummary(
 
 		if len(workload.Recommendations) > 0 {
 
-			report.Summary.OptimizableWorkloads++
+			report.Summary.
+				OptimizableWorkloads++
 		}
 
 		if workload.Cost == nil {

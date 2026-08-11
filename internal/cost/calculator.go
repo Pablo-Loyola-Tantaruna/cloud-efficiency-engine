@@ -4,13 +4,8 @@ import (
 	"math"
 
 	"cloud-efficiency-engine/internal/domain"
+	"cloud-efficiency-engine/internal/pricing"
 )
-
-type Pricing struct {
-	CPUPerCoreHour  float64
-	MemoryPerGBHour float64
-	HoursPerMonth   float64
-}
 
 type CostEstimate struct {
 	CurrentMonthlyCostUSD   float64 `json:"currentMonthlyCostUsd"`
@@ -21,53 +16,73 @@ type CostEstimate struct {
 }
 
 type Calculator struct {
-	pricing Pricing
+	hoursPerMonth float64
 }
 
-func NewCalculator(pricing Pricing) *Calculator {
+func NewCalculator(
+	hoursPerMonth float64,
+) *Calculator {
+
 	return &Calculator{
-		pricing: pricing,
+		hoursPerMonth: hoursPerMonth,
 	}
 }
 
 func (c *Calculator) Estimate(
 	workload domain.WorkloadMetrics,
 	recommendations []domain.Recommendation,
+	prices pricing.ResourcePricing,
 ) CostEstimate {
 
-	current := c.workloadCost(
-		workload.CPURequestMillicores,
-		workload.MemoryRequestBytes,
-		workload.Replicas,
-	)
+	current :=
+		c.workloadCost(
+			workload.CPURequestMillicores,
+			workload.MemoryRequestBytes,
+			workload.Replicas,
+			prices,
+		)
 
-	optimizedCPU := workload.CPURequestMillicores
-	optimizedMemory := workload.MemoryRequestBytes
+	optimizedCPU :=
+		workload.CPURequestMillicores
+
+	optimizedMemory :=
+		workload.MemoryRequestBytes
 
 	for _, recommendation := range recommendations {
 
-		if recommendation.Workload != workloadKey(workload) {
+		if recommendation.Workload !=
+			workloadKey(workload) {
+
 			continue
 		}
 
-		if recommendation.SuggestedCPURequestMillicores > 0 {
+		if recommendation.
+			SuggestedCPURequestMillicores > 0 {
+
 			optimizedCPU =
-				recommendation.SuggestedCPURequestMillicores
+				recommendation.
+					SuggestedCPURequestMillicores
 		}
 
-		if recommendation.SuggestedMemoryRequestBytes > 0 {
+		if recommendation.
+			SuggestedMemoryRequestBytes > 0 {
+
 			optimizedMemory =
-				recommendation.SuggestedMemoryRequestBytes
+				recommendation.
+					SuggestedMemoryRequestBytes
 		}
 	}
 
-	optimized := c.workloadCost(
-		optimizedCPU,
-		optimizedMemory,
-		workload.Replicas,
-	)
+	optimized :=
+		c.workloadCost(
+			optimizedCPU,
+			optimizedMemory,
+			workload.Replicas,
+			prices,
+		)
 
-	savings := current - optimized
+	savings :=
+		current - optimized
 
 	if savings < 0 {
 		savings = 0
@@ -76,15 +91,23 @@ func (c *Calculator) Estimate(
 	percentage := 0.0
 
 	if current > 0 {
-		percentage = savings / current * 100
+
+		percentage =
+			savings /
+				current *
+				100
 	}
 
 	return CostEstimate{
-		CurrentMonthlyCostUSD:   round(current),
+		CurrentMonthlyCostUSD: round(current),
+
 		OptimizedMonthlyCostUSD: round(optimized),
-		PotentialSavingsUSD:     round(savings),
-		SavingsPercentage:       round(percentage),
-		AnnualizedSavingsUSD:    round(savings * 12),
+
+		PotentialSavingsUSD: round(savings),
+
+		SavingsPercentage: round(percentage),
+
+		AnnualizedSavingsUSD: round(savings * 12),
 	}
 }
 
@@ -92,52 +115,67 @@ func (c *Calculator) workloadCost(
 	cpuMillicores int64,
 	memoryBytes int64,
 	replicas int,
+	prices pricing.ResourcePricing,
 ) float64 {
 
 	return c.cpuCost(
 		cpuMillicores,
 		replicas,
+		prices.CPUPerCoreHour,
 	) + c.memoryCost(
 		memoryBytes,
 		replicas,
+		prices.MemoryPerGBHour,
 	)
 }
 
 func (c *Calculator) cpuCost(
 	millicores int64,
 	replicas int,
+	pricePerCoreHour float64,
 ) float64 {
 
-	cores := float64(millicores) / 1000
+	cores :=
+		float64(millicores) / 1000
 
 	return cores *
 		float64(replicas) *
-		c.pricing.CPUPerCoreHour *
-		c.pricing.HoursPerMonth
+		pricePerCoreHour *
+		c.hoursPerMonth
 }
 
 func (c *Calculator) memoryCost(
 	bytes int64,
 	replicas int,
+	pricePerGBHour float64,
 ) float64 {
 
 	const bytesPerGB = 1024 * 1024 * 1024
 
-	gb := float64(bytes) / bytesPerGB
+	gb :=
+		float64(bytes) /
+			bytesPerGB
 
 	return gb *
 		float64(replicas) *
-		c.pricing.MemoryPerGBHour *
-		c.pricing.HoursPerMonth
+		pricePerGBHour *
+		c.hoursPerMonth
 }
 
 func workloadKey(
 	workload domain.WorkloadMetrics,
 ) string {
 
-	return workload.Namespace + "/" + workload.Name
+	return workload.Namespace +
+		"/" +
+		workload.Name
 }
 
-func round(value float64) float64 {
-	return math.Round(value*100) / 100
+func round(
+	value float64,
+) float64 {
+
+	return math.Round(
+		value*100,
+	) / 100
 }

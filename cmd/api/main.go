@@ -15,11 +15,13 @@ import (
 	"cloud-efficiency-engine/internal/domain"
 	"cloud-efficiency-engine/internal/metrics"
 	"cloud-efficiency-engine/internal/metrics/providers"
+	"cloud-efficiency-engine/internal/pricing"
 )
 
 const (
 	defaultLookbackHours = 7 * 24
 	defaultHistoryStep   = 5 * time.Minute
+	defaultHoursPerMonth = 730.0
 )
 
 func main() {
@@ -30,16 +32,17 @@ func main() {
 			rules.NewMemoryOverprovisioningRule(),
 		}
 
-	pricing :=
-		cost.Pricing{
-			CPUPerCoreHour:  0.04,
-			MemoryPerGBHour: 0.005,
-			HoursPerMonth:   730,
-		}
+	pricingProvider :=
+		pricing.NewStaticProvider(
+			pricing.ResourcePricing{
+				CPUPerCoreHour:  0.04,
+				MemoryPerGBHour: 0.005,
+			},
+		)
 
 	calculator :=
 		cost.NewCalculator(
-			pricing,
+			defaultHoursPerMonth,
 		)
 
 	recommendationResolver :=
@@ -53,6 +56,7 @@ func main() {
 		analysis.NewEngine(
 			provider,
 			historicalProvider,
+			pricingProvider,
 			optimizationRules,
 			optimizer.DefaultOptimizationPolicy(),
 			recommendationResolver,
