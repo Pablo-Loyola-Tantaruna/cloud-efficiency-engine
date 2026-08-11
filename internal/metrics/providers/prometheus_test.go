@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"cloud-efficiency-engine/internal/domain"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -92,7 +93,24 @@ func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
     ]
   }
 }`))
+			case "cee_workload_replicas":
 
+				_, _ = w.Write([]byte(`
+    {
+        "status": "success",
+        "data": {
+            "resultType": "vector",
+            "result": [
+                {
+                    "metric": {
+                        "namespace": "payments",
+                        "workload": "payments-api"
+                    },
+                    "value": [1700000000, "3"]
+                }
+            ]
+        }
+    }`))
 			default:
 				http.Error(w, "unknown query", http.StatusBadRequest)
 			}
@@ -155,6 +173,20 @@ func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
 		t.Errorf(
 			"expected memory request 2147483648, got %d",
 			workload.MemoryRequestBytes,
+		)
+	}
+
+	if workload.Replicas != 3 {
+		t.Errorf(
+			"expected replicas 3, got %d",
+			workload.Replicas,
+		)
+	}
+
+	if workload.Type != domain.WorkloadDeployment {
+		t.Errorf(
+			"expected workload type Deployment, got %s",
+			workload.Type,
 		)
 	}
 }

@@ -167,10 +167,20 @@ func (p *PrometheusProvider) GetWorkloads(
 		return nil, err
 	}
 
+	replicas, err := p.query(
+		ctx,
+		`cee_workload_replicas`,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return mergeMetrics(
 		cpuRequests,
 		cpuUsage,
 		memoryRequests,
 		memoryUsage,
+		replicas,
 	)
 }

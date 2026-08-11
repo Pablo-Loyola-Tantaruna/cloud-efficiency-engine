@@ -11,6 +11,7 @@ func mergeMetrics(
 	cpuUsage []prometheusResult,
 	memoryRequests []prometheusResult,
 	memoryUsage []prometheusResult,
+	replicas []prometheusResult,
 ) ([]domain.WorkloadMetrics, error) {
 
 	type workloadData struct {
@@ -23,7 +24,7 @@ func mergeMetrics(
 		metric map[string]string,
 	) *workloadData {
 
-		namespace := metric["namespace.yml"]
+		namespace := metric["namespace"]
 		name := metric["workload"]
 
 		key := namespace + "/" + name
@@ -102,6 +103,24 @@ func mergeMetrics(
 		getWorkload(item.Metric).
 			metrics.
 			MemoryUsageBytes = int64(value)
+	}
+
+	for _, item := range replicas {
+
+		value, err := parsePrometheusValue(item.Value)
+
+		if err != nil {
+			return nil, fmt.Errorf(
+				"parse replicas for workload: %w",
+				err,
+			)
+		}
+
+		workload := getWorkload(item.Metric)
+
+		workload.metrics.Replicas = int(value)
+
+		workload.metrics.Type = domain.WorkloadDeployment
 	}
 
 	result := make(
