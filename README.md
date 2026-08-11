@@ -2,7 +2,7 @@
 
 > Analyze Kubernetes workloads and cloud infrastructure to identify cost, resource efficiency, and reliability optimization opportunities.
 
-[![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.25.5-00ADD8?logo=go)](https://go.dev/)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-Cloud--Native-326CE5?logo=kubernetes)](https://kubernetes.io/)
 [![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker)](https://www.docker.com/)
 [![Terraform](https://img.shields.io/badge/Terraform-Infrastructure-7B42BC?logo=terraform)](https://www.terraform.io/)

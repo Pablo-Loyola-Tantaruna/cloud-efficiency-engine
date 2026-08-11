@@ -3,32 +3,75 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"cloud-efficiency-engine/internal/analysis"
 )
 
 type Handler struct {
-	analyzer *analysis.Analyzer
+	engine *analysis.Engine
 }
 
-func NewHandler(analyzer *analysis.Analyzer) *Handler {
+func NewHandler(
+	engine *analysis.Engine,
+) *Handler {
+
 	return &Handler{
-		analyzer: analyzer,
+		engine: engine,
 	}
 }
 
-func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	response := map[string]string{
-		"status": "UP",
-	}
+func (h *Handler) Health(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 
-	writeJSON(w, http.StatusOK, response)
+	response :=
+		map[string]string{
+			"status": "UP",
+		}
+
+	writeJSON(
+		w,
+		http.StatusOK,
+		response,
+	)
 }
 
-func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
-	result, err := h.analyzer.Analyze(r.Context())
+func (h *Handler) Analyze(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	now :=
+		time.Now().UTC()
+
+	lookbackHours :=
+		getLookbackHours()
+
+	options :=
+		analysis.AnalysisOptions{
+			Start: now.Add(
+				-time.Duration(
+					lookbackHours,
+				) * time.Hour,
+			),
+
+			End: now,
+
+			Step: 5 * time.Minute,
+		}
+
+	result, err :=
+		h.engine.Analyze(
+			r.Context(),
+			options,
+		)
 
 	if err != nil {
+
 		writeJSON(
 			w,
 			http.StatusInternalServerError,
@@ -36,10 +79,38 @@ func (h *Handler) Analyze(w http.ResponseWriter, r *http.Request) {
 				"error": err.Error(),
 			},
 		)
+
 		return
 	}
 
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(
+		w,
+		http.StatusOK,
+		result,
+	)
+}
+
+func getLookbackHours() int {
+
+	raw :=
+		os.Getenv(
+			"ANALYSIS_LOOKBACK_HOURS",
+		)
+
+	if raw == "" {
+		return 168
+	}
+
+	value, err :=
+		strconv.Atoi(raw)
+
+	if err != nil ||
+		value <= 0 {
+
+		return 168
+	}
+
+	return value
 }
 
 func writeJSON(
@@ -47,8 +118,15 @@ func writeJSON(
 	status int,
 	data interface{},
 ) {
-	w.Header().Set("Content-Type", "application/json")
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
 	w.WriteHeader(status)
 
-	_ = json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(
+		w,
+	).Encode(data)
 }

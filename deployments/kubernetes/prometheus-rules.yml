@@ -1,0 +1,158 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+
+metadata:
+  name: cloud-efficiency-engine
+  namespace: monitoring
+
+  labels:
+    release: monitoring
+    app.kubernetes.io/name: cloud-efficiency-engine
+    app.kubernetes.io/part-of: cloud-efficiency-engine
+
+spec:
+
+  groups:
+
+    - name: cloud-efficiency-engine
+      interval: 30s
+
+      rules:
+
+        # ------------------------------------------------------------
+        # Kubernetes workload ownership
+        #
+        # Pod -> ReplicaSet -> Deployment
+        # ------------------------------------------------------------
+
+        - record: cee:pod_workload:owner
+
+          expr: |
+            max by (namespace, workload, pod) (
+              label_replace(
+                label_replace(
+                  kube_pod_owner{
+                    owner_kind="ReplicaSet"
+                  },
+                  "replicaset",
+                  "$1",
+                  "owner_name",
+                  "(.*)"
+                )
+                * on (namespace, replicaset)
+                  group_left(owner_name)
+                  topk by (namespace, replicaset) (
+                    1,
+                    max by (
+                      namespace,
+                      replicaset,
+                      owner_name
+                    ) (
+                      kube_replicaset_owner{
+                        owner_kind="Deployment"
+                      }
+                    )
+                  ),
+                "workload",
+                "$1",
+                "owner_name",
+                "(.*)"
+              )
+            )
+
+        # ------------------------------------------------------------
+        # CPU requests
+        #
+        # kube-state-metrics exposes CPU requests in cores.
+        # CEE normalizes them to millicores.
+        # ------------------------------------------------------------
+
+        - record: cee_workload_cpu_request_millicores
+
+          expr: |
+            sum by (namespace, workload) (
+              kube_pod_container_resource_requests{
+                resource="cpu",
+                unit="core",
+                container!="",
+                container!="POD"
+              }
+              * on (namespace, pod)
+                group_left(workload)
+                cee:pod_workload:owner
+            ) * 1000
+
+        # ------------------------------------------------------------
+        # CPU usage
+        #
+        # container_cpu_usage_seconds_total is a counter.
+        # rate() converts it into CPU cores/sec.
+        # ------------------------------------------------------------
+
+        - record: cee_workload_cpu_usage_millicores
+
+          expr: |
+            sum by (namespace, workload) (
+              rate(
+                container_cpu_usage_seconds_total{
+                  container!="",
+                  container!="POD",
+                  image!=""
+                }[5m]
+              )
+              * on (namespace, pod)
+                group_left(workload)
+                cee:pod_workload:owner
+            ) * 1000
+
+        # ------------------------------------------------------------
+        # Memory requests
+        # ------------------------------------------------------------
+
+        - record: cee_workload_memory_request_bytes
+
+          expr: |
+            sum by (namespace, workload) (
+              kube_pod_container_resource_requests{
+                resource="memory",
+                unit="byte",
+                container!="",
+                container!="POD"
+              }
+              * on (namespace, pod)
+                group_left(workload)
+                cee:pod_workload:owner
+            )
+
+        # ------------------------------------------------------------
+        # Memory usage
+        # ------------------------------------------------------------
+
+        - record: cee_workload_memory_usage_bytes
+
+          expr: |
+            sum by (namespace, workload) (
+              container_memory_working_set_bytes{
+                container!="",
+                container!="POD",
+                image!=""
+              }
+              * on (namespace, pod)
+                group_left(workload)
+                cee:pod_workload:owner
+            )
+
+        # ------------------------------------------------------------
+        # Desired replicas
+        # ------------------------------------------------------------
+
+        - record: cee_workload_replicas
+
+          expr: |
+            label_replace(
+              kube_deployment_spec_replicas,
+              "workload",
+              "$1",
+              "deployment",
+              "(.*)"
+            )
