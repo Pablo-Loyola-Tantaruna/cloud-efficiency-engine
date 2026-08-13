@@ -1,0 +1,579 @@
+openapi: 3.0.3
+
+info:
+  title: Cloud Efficiency Engine API
+  version: 0.4.0
+  description: |
+    API for analyzing Kubernetes workloads,
+    detecting resource overprovisioning,
+    generating optimization recommendations,
+    and estimating potential cloud cost savings.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Analysis
+    description: Workload efficiency analysis
+  - name: Health
+    description: Application health endpoints
+
+paths:
+
+  /api/v1/analyze:
+
+    post:
+      tags:
+        - Analysis
+
+      summary: Analyze Kubernetes workloads
+
+      description: |
+        Analyzes workloads in a Kubernetes namespace using
+        current resource metrics, historical utilization,
+        optimization rules and cloud pricing information.
+
+      operationId: analyzeWorkloads
+
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+
+      requestBody:
+        required: true
+
+        content:
+
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+
+            example:
+              namespace: cloud-efficiency
+              lookbackHours: 168
+              stepSeconds: 300
+
+      responses:
+
+        "200":
+          description: Analysis completed successfully
+
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+
+          content:
+
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisReport"
+
+        "400":
+          description: Invalid request
+
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+        "500":
+          description: Analysis failed
+
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /health:
+
+    get:
+      tags:
+        - Health
+
+      summary: Health check
+
+      operationId: health
+
+      responses:
+
+        "200":
+          description: Application is healthy
+
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /ready:
+
+    get:
+      tags:
+        - Health
+
+      summary: Readiness check
+
+      operationId: readiness
+
+      responses:
+
+        "200":
+          description: Application is ready
+
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+
+        "503":
+          description: Application is not ready
+
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+
+components:
+
+  parameters:
+
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+
+      description: |
+        Optional request identifier used for request tracing.
+        If omitted, the API generates one automatically.
+
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+
+      example: request-123
+
+  headers:
+
+    RequestId:
+      description: Unique identifier assigned to the request.
+
+      schema:
+        type: string
+
+      example: request-123
+
+  schemas:
+
+    AnalyzeRequest:
+      type: object
+
+      additionalProperties: false
+
+      required:
+        - namespace
+
+      properties:
+
+        namespace:
+          type: string
+          minLength: 1
+          maxLength: 253
+
+          description: |
+            Kubernetes namespace to analyze.
+
+          example: cloud-efficiency
+
+        lookbackHours:
+          type: integer
+          format: int32
+
+          minimum: 1
+          maximum: 720
+
+          default: 168
+
+          description: |
+            Historical analysis window in hours.
+
+            Default: 168 hours.
+            Maximum: 720 hours.
+
+          example: 168
+
+        stepSeconds:
+          type: integer
+          format: int32
+
+          minimum: 15
+          maximum: 3600
+
+          default: 300
+
+          description: |
+            Prometheus query resolution in seconds.
+
+            Default: 300 seconds.
+            Minimum: 15 seconds.
+            Maximum: 3600 seconds.
+
+          example: 300
+
+    AnalysisReport:
+      type: object
+
+      required:
+        - generatedAt
+        - summary
+        - workloads
+
+      properties:
+
+        generatedAt:
+          type: string
+          format: date-time
+
+          example: "2026-08-12T20:00:00Z"
+
+        summary:
+          $ref: "#/components/schemas/AnalysisSummary"
+
+        workloads:
+          type: array
+
+          items:
+            $ref: "#/components/schemas/WorkloadAnalysis"
+
+    AnalysisSummary:
+      type: object
+
+      required:
+        - totalWorkloads
+        - optimizableWorkloads
+        - currentMonthlyCostUsd
+        - optimizedMonthlyCostUsd
+        - potentialSavingsUsd
+        - savingsPercentage
+
+      properties:
+
+        totalWorkloads:
+          type: integer
+          format: int32
+          minimum: 0
+
+        optimizableWorkloads:
+          type: integer
+          format: int32
+          minimum: 0
+
+        currentMonthlyCostUsd:
+          type: number
+          format: double
+          minimum: 0
+
+        optimizedMonthlyCostUsd:
+          type: number
+          format: double
+          minimum: 0
+
+        potentialSavingsUsd:
+          type: number
+          format: double
+          minimum: 0
+
+        savingsPercentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+
+    WorkloadAnalysis:
+      type: object
+
+      required:
+        - workload
+        - status
+        - recommendations
+
+      properties:
+
+        workload:
+          $ref: "#/components/schemas/WorkloadMetrics"
+
+        status:
+          type: string
+
+          enum:
+            - ANALYZED
+            - INSUFFICIENT_DATA
+
+        history:
+          nullable: true
+
+          allOf:
+            - $ref: "#/components/schemas/WorkloadHistory"
+
+        recommendations:
+          type: array
+
+          items:
+            $ref: "#/components/schemas/Recommendation"
+
+        cost:
+          nullable: true
+
+          allOf:
+            - $ref: "#/components/schemas/CostEstimate"
+
+    WorkloadMetrics:
+      type: object
+
+      required:
+        - namespace
+        - name
+        - type
+        - replicas
+        - cpuRequestMillicores
+        - cpuUsageMillicores
+        - memoryRequestBytes
+        - memoryUsageBytes
+
+      properties:
+
+        namespace:
+          type: string
+
+        name:
+          type: string
+
+        type:
+          type: string
+
+          enum:
+            - Deployment
+            - StatefulSet
+            - DaemonSet
+            - Job
+            - Unknown
+
+        replicas:
+          type: integer
+          format: int32
+          minimum: 0
+
+        cpuRequestMillicores:
+          type: integer
+          format: int64
+          minimum: 0
+
+        cpuUsageMillicores:
+          type: integer
+          format: int64
+          minimum: 0
+
+        memoryRequestBytes:
+          type: integer
+          format: int64
+          minimum: 0
+
+        memoryUsageBytes:
+          type: integer
+          format: int64
+          minimum: 0
+
+    WorkloadHistory:
+      type: object
+
+      required:
+        - namespace
+        - name
+        - cpuUsageMillicores
+        - memoryUsageBytes
+
+      properties:
+
+        namespace:
+          type: string
+
+        name:
+          type: string
+
+        cpuUsageMillicores:
+          type: array
+
+          items:
+            $ref: "#/components/schemas/MetricSample"
+
+        memoryUsageBytes:
+          type: array
+
+          items:
+            $ref: "#/components/schemas/MetricSample"
+
+    MetricSample:
+      type: object
+
+      required:
+        - timestamp
+        - value
+
+      properties:
+
+        timestamp:
+          type: string
+          format: date-time
+
+        value:
+          type: number
+          format: double
+
+    Recommendation:
+      type: object
+
+      required:
+        - rule
+        - workload
+        - description
+        - severity
+        - confidence
+
+      properties:
+
+        rule:
+          type: string
+
+        workload:
+          type: string
+
+        description:
+          type: string
+
+        severity:
+          type: string
+
+          enum:
+            - INFO
+            - WARNING
+            - CRITICAL
+
+        confidence:
+          type: string
+
+          enum:
+            - LOW
+            - MEDIUM
+            - HIGH
+
+        currentCpuRequestMillicores:
+          type: integer
+          format: int64
+          minimum: 0
+
+        suggestedCpuRequestMillicores:
+          type: integer
+          format: int64
+          minimum: 0
+
+        currentMemoryRequestBytes:
+          type: integer
+          format: int64
+          minimum: 0
+
+        suggestedMemoryRequestBytes:
+          type: integer
+          format: int64
+          minimum: 0
+
+    CostEstimate:
+      type: object
+
+      required:
+        - currentMonthlyCostUsd
+        - optimizedMonthlyCostUsd
+        - potentialSavingsUsd
+        - savingsPercentage
+        - annualizedSavingsUsd
+
+      properties:
+
+        currentMonthlyCostUsd:
+          type: number
+          format: double
+          minimum: 0
+
+        optimizedMonthlyCostUsd:
+          type: number
+          format: double
+          minimum: 0
+
+        potentialSavingsUsd:
+          type: number
+          format: double
+          minimum: 0
+
+        savingsPercentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+
+        annualizedSavingsUsd:
+          type: number
+          format: double
+          minimum: 0
+
+    HealthResponse:
+      type: object
+
+      required:
+        - status
+
+      properties:
+
+        status:
+          type: string
+
+          example: UP
+
+    ReadinessResponse:
+      type: object
+
+      required:
+        - status
+
+      properties:
+
+        status:
+          type: string
+
+          example: UP
+
+        dependencies:
+          type: object
+
+          additionalProperties:
+            type: string
+
+          example:
+            prometheus: UP
+            kubernetes: UP
+            pricing: UP
+
+    ErrorResponse:
+      type: object
+
+      required:
+        - code
+        - message
+
+      properties:
+
+        code:
+          type: string
+
+        message:
+          type: string
+
+        requestId:
+          type: string

@@ -3,19 +3,29 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"strconv"
+	"strings"
 	"time"
 
 	"cloud-efficiency-engine/internal/analysis"
 )
 
+const (
+	defaultLookbackHours = 168
+	defaultStepSeconds   = 300
+
+	minLookbackHours = 1
+	maxLookbackHours = 720
+
+	minStepSeconds = 15
+	maxStepSeconds = 3600
+)
+
 type Handler struct {
-	engine *analysis.Engine
+	engine AnalysisService
 }
 
 func NewHandler(
-	engine *analysis.Engine,
+	engine AnalysisService,
 ) *Handler {
 
 	return &Handler{
@@ -23,100 +33,162 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) Health(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	response :=
-		map[string]string{
-			"status": "UP",
-		}
-
-	writeJSON(
-		w,
-		http.StatusOK,
-		response,
-	)
-}
-
 func (h *Handler) Analyze(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 
-	now :=
-		time.Now().UTC()
-
-	lookbackHours :=
-		getLookbackHours()
-
-	options :=
-		analysis.AnalysisOptions{
-			Start: now.Add(
-				-time.Duration(
-					lookbackHours,
-				) * time.Hour,
-			),
-
-			End: now,
-
-			Step: 5 * time.Minute,
-		}
-
-	result, err :=
-		h.engine.Analyze(
+	requestID :=
+		requestIDFromContext(
 			r.Context(),
-			options,
 		)
 
-	if err != nil {
+	if r.Method != http.MethodPost {
 
-		writeJSON(
+		writeError(
 			w,
-			http.StatusInternalServerError,
-			map[string]string{
-				"error": err.Error(),
-			},
+			http.StatusMethodNotAllowed,
+			ErrCodeInvalidRequest,
+			"method not allowed",
+			requestID,
 		)
 
 		return
 	}
 
-	writeJSON(
-		w,
-		http.StatusOK,
-		result,
-	)
-}
+	var request AnalyzeRequest
 
-func getLookbackHours() int {
+	if err :=
+		json.NewDecoder(
+			r.Body,
+		).Decode(&request); err != nil {
 
-	raw :=
-		os.Getenv(
-			"ANALYSIS_LOOKBACK_HOURS",
+		writeError(
+			w,
+			http.StatusBadRequest,
+			ErrCodeInvalidRequest,
+			"invalid JSON request body",
+			requestID,
 		)
 
-	if raw == "" {
-		return 168
+		return
 	}
 
-	value, err :=
-		strconv.Atoi(raw)
+	if strings.TrimSpace(
+		request.Namespace,
+	) == "" {
 
-	if err != nil ||
-		value <= 0 {
+		writeError(
+			w,
+			http.StatusBadRequest,
+			ErrCodeInvalidRequest,
+			"namespace must not be empty",
+			requestID,
+		)
 
-		return 168
+		return
 	}
 
-	return value
+	request.Namespace =
+		strings.TrimSpace(
+			request.Namespace,
+		)
+
+	if request.LookbackHours == 0 {
+		request.LookbackHours =
+			defaultLookbackHours
+	}
+
+	if request.StepSeconds == 0 {
+		request.StepSeconds =
+			defaultStepSeconds
+	}
+
+	if request.LookbackHours <
+		minLookbackHours ||
+		request.LookbackHours >
+			maxLookbackHours {
+
+		writeError(
+			w,
+			http.StatusBadRequest,
+			ErrCodeInvalidRequest,
+			"lookbackHours must be between 1 and 720",
+			requestID,
+		)
+
+		return
+	}
+
+	if request.StepSeconds <
+		minStepSeconds ||
+		request.StepSeconds >
+			maxStepSeconds {
+
+		writeError(
+			w,
+			http.StatusBadRequest,
+			ErrCodeInvalidRequest,
+			"stepSeconds must be between 15 and 3600",
+			requestID,
+		)
+
+		return
+	}
+
+	end :=
+		time.Now().UTC()
+
+	start :=
+		end.Add(
+			-time.Duration(
+				request.LookbackHours,
+			) * time.Hour,
+		)
+
+	report, err :=
+		h.engine.Analyze(
+			r.Context(),
+			analysis.AnalysisOptions{
+				Namespace: request.Namespace,
+				Start:     start,
+				End:       end,
+				Step: time.Duration(
+					request.StepSeconds,
+				) * time.Second,
+			},
+		)
+
+	if err != nil {
+
+		writeError(
+			w,
+			http.StatusInternalServerError,
+			ErrCodeAnalysisFailed,
+			"analysis failed",
+			requestID,
+		)
+
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(
+		http.StatusOK,
+	)
+
+	_ = json.NewEncoder(
+		w,
+	).Encode(report)
 }
 
-func writeJSON(
+func (h *Handler) Health(
 	w http.ResponseWriter,
-	status int,
-	data interface{},
+	r *http.Request,
 ) {
 
 	w.Header().Set(
@@ -124,9 +196,38 @@ func writeJSON(
 		"application/json",
 	)
 
-	w.WriteHeader(status)
+	w.WriteHeader(
+		http.StatusOK,
+	)
 
 	_ = json.NewEncoder(
 		w,
-	).Encode(data)
+	).Encode(
+		HealthResponse{
+			Status: "UP",
+		},
+	)
+}
+
+func (h *Handler) Ready(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(
+		http.StatusOK,
+	)
+
+	_ = json.NewEncoder(
+		w,
+	).Encode(
+		ReadinessResponse{
+			Status: "UP",
+		},
+	)
 }

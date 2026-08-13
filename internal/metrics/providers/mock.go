@@ -13,6 +13,7 @@ type MockProvider struct {
 func NewMockProvider(
 	workloads []domain.WorkloadMetrics,
 ) *MockProvider {
+
 	return &MockProvider{
 		workloads: workloads,
 	}
@@ -20,6 +21,28 @@ func NewMockProvider(
 
 func (p *MockProvider) GetWorkloads(
 	ctx context.Context,
+	namespace string,
 ) ([]domain.WorkloadMetrics, error) {
-	return p.workloads, nil
+
+	result :=
+		make(
+			[]domain.WorkloadMetrics,
+			0,
+			len(p.workloads),
+		)
+
+	for _, workload := range p.workloads {
+
+		if workload.Namespace != namespace {
+			continue
+		}
+
+		result =
+			append(
+				result,
+				workload,
+			)
+	}
+
+	return result, nil
 }

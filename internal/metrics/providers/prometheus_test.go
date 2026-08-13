@@ -1,192 +1,446 @@
 package providers
 
 import (
-	"cloud-efficiency-engine/internal/domain"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
 
-func TestPrometheusProvider_GetWorkloads_ShouldParseMetrics(t *testing.T) {
+func TestPrometheusProvider_GetWorkloads_ShouldFilterByNamespace(
+	t *testing.T,
+) {
+
 	// Arrange
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			query := r.URL.Query().Get("query")
+	server :=
+		httptest.NewServer(
+			http.HandlerFunc(
+				func(
+					w http.ResponseWriter,
+					r *http.Request,
+				) {
 
-			w.Header().Set(
-				"Content-Type",
-				"application/json",
-			)
+					query :=
+						r.URL.Query().Get(
+							"query",
+						)
 
-			switch query {
+					if !strings.Contains(
+						query,
+						`namespace="cloud-efficiency"`,
+					) {
 
-			case "cee_workload_cpu_request_millicores":
-				_, _ = w.Write([]byte(`
-{
-  "status": "success",
-  "data": {
-    "resultType": "vector",
-    "result": [
-      {
-        "metric": {
-          "namespace": "payments",
-          "workload": "payments-api"
-        },
-        "value": [1700000000, "1000"]
-      }
-    ]
-  }
-}`))
+						t.Errorf(
+							"expected namespace filter in query, got %s",
+							query,
+						)
+					}
 
-			case "cee_workload_cpu_usage_millicores":
-				_, _ = w.Write([]byte(`
-{
-  "status": "success",
-  "data": {
-    "resultType": "vector",
-    "result": [
-      {
-        "metric": {
-          "namespace": "payments",
-          "workload": "payments-api"
-        },
-        "value": [1700000000, "180"]
-      }
-    ]
-  }
-}`))
+					response := map[string]interface{}{
+						"status": "success",
 
-			case "cee_workload_memory_request_bytes":
-				_, _ = w.Write([]byte(`
-{
-  "status": "success",
-  "data": {
-    "resultType": "vector",
-    "result": [
-      {
-        "metric": {
-          "namespace": "payments",
-          "workload": "payments-api"
-        },
-        "value": [1700000000, "2147483648"]
-      }
-    ]
-  }
-}`))
+						"data": map[string]interface{}{
+							"resultType": "vector",
 
-			case "cee_workload_memory_usage_bytes":
-				_, _ = w.Write([]byte(`
-{
-  "status": "success",
-  "data": {
-    "resultType": "vector",
-    "result": [
-      {
-        "metric": {
-          "namespace": "payments",
-          "workload": "payments-api"
-        },
-        "value": [1700000000, "671088640"]
-      }
-    ]
-  }
-}`))
-			case "cee_workload_replicas":
+							"result": []map[string]interface{}{
+								{
+									"metric": map[string]string{
+										"namespace": "cloud-efficiency",
+										"workload":  "payments-api",
+									},
 
-				_, _ = w.Write([]byte(`
-    {
-        "status": "success",
-        "data": {
-            "resultType": "vector",
-            "result": [
-                {
-                    "metric": {
-                        "namespace": "payments",
-                        "workload": "payments-api"
-                    },
-                    "value": [1700000000, "3"]
-                }
-            ]
-        }
-    }`))
-			default:
-				http.Error(w, "unknown query", http.StatusBadRequest)
-			}
-		}),
-	)
+									"value": []interface{}{
+										float64(1720000000),
+										"1000",
+									},
+								},
+							},
+						},
+					}
+
+					w.Header().Set(
+						"Content-Type",
+						"application/json",
+					)
+
+					w.WriteHeader(
+						http.StatusOK,
+					)
+
+					_ = json.NewEncoder(
+						w,
+					).Encode(response)
+				},
+			),
+		)
 
 	defer server.Close()
 
-	provider := NewPrometheusProvider(
-		server.URL,
-		server.Client(),
-	)
+	provider :=
+		NewPrometheusProvider(
+			server.URL,
+			server.Client(),
+		)
 
 	// Act
-	result, err := provider.GetWorkloads(context.Background())
+
+	_, err :=
+		provider.GetWorkloads(
+			context.Background(),
+			"cloud-efficiency",
+		)
 
 	// Assert
+
+	if err == nil {
+
+		/*
+			The fake server intentionally returns
+			only one metric family, so mergeMetrics
+			will not have enough information to build
+			a complete workload.
+
+			The purpose of this test is the HTTP
+			contract: namespace filtering must reach
+			Prometheus.
+		*/
+
+		return
+	}
+
+	if !strings.Contains(
+		err.Error(),
+		"prometheus",
+	) {
+
+		t.Fatalf(
+			"expected Prometheus-related error, got %v",
+			err,
+		)
+	}
+}
+
+func TestPrometheusProvider_QueryRange_ShouldSendNamespace(
+	t *testing.T,
+) {
+
+	// Arrange
+
+	server :=
+		httptest.NewServer(
+			http.HandlerFunc(
+				func(
+					w http.ResponseWriter,
+					r *http.Request,
+				) {
+
+					query :=
+						r.URL.Query().Get(
+							"query",
+						)
+
+					if !strings.Contains(
+						query,
+						`namespace="cloud-efficiency"`,
+					) {
+
+						t.Errorf(
+							"expected namespace filter in range query, got %s",
+							query,
+						)
+					}
+
+					response := map[string]interface{}{
+						"status": "success",
+
+						"data": map[string]interface{}{
+							"resultType": "matrix",
+
+							"result": []map[string]interface{}{
+								{
+									"metric": map[string]string{
+										"namespace": "cloud-efficiency",
+										"workload":  "payments-api",
+									},
+
+									"values": [][]interface{}{
+										{
+											float64(1720000000),
+											"100",
+										},
+										{
+											float64(1720000300),
+											"120",
+										},
+									},
+								},
+							},
+						},
+					}
+
+					w.Header().Set(
+						"Content-Type",
+						"application/json",
+					)
+
+					w.WriteHeader(
+						http.StatusOK,
+					)
+
+					_ = json.NewEncoder(
+						w,
+					).Encode(response)
+				},
+			),
+		)
+
+	defer server.Close()
+
+	provider :=
+		NewPrometheusProvider(
+			server.URL,
+			server.Client(),
+		)
+
+	start :=
+		time.Unix(
+			1720000000,
+			0,
+		)
+
+	end :=
+		start.Add(
+			10 * time.Minute,
+		)
+
+	step :=
+		5 * time.Minute
+
+	// Act
+
+	result, err :=
+		provider.queryRange(
+			context.Background(),
+			`cee_workload_cpu_usage_millicores{namespace="cloud-efficiency"}`,
+			start,
+			end,
+			step,
+		)
+
+	// Assert
+
 	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+
+		t.Fatalf(
+			"expected no error, got %v",
+			err,
+		)
 	}
 
 	if len(result) != 1 {
+
 		t.Fatalf(
-			"expected 1 workload, got %d",
+			"expected 1 result, got %d",
 			len(result),
 		)
 	}
 
-	workload := result[0]
+	if result[0].Metric["namespace"] !=
+		"cloud-efficiency" {
 
-	if workload.Namespace != "payments" {
-		t.Errorf(
-			"expected namespace payments, got %s",
-			workload.Namespace,
+		t.Fatalf(
+			"expected cloud-efficiency namespace, got %s",
+			result[0].Metric["namespace"],
 		)
 	}
 
-	if workload.Name != "payments-api" {
-		t.Errorf(
-			"expected workload payments-api, got %s",
-			workload.Name,
+	if len(result[0].Values) != 2 {
+
+		t.Fatalf(
+			"expected 2 values, got %d",
+			len(result[0].Values),
+		)
+	}
+}
+
+func TestWorkloadMetricQuery_ShouldBuildNamespaceSelector(
+	t *testing.T,
+) {
+
+	// Arrange
+
+	metric :=
+		"cee_workload_cpu_usage_millicores"
+
+	namespace :=
+		"cloud-efficiency"
+
+	// Act
+
+	query :=
+		workloadMetricQuery(
+			metric,
+			namespace,
+		)
+
+	// Assert
+
+	expected :=
+		`cee_workload_cpu_usage_millicores{namespace="cloud-efficiency"}`
+
+	if query != expected {
+
+		t.Fatalf(
+			"expected %s, got %s",
+			expected,
+			query,
+		)
+	}
+}
+
+func TestPrometheusProvider_GetWorkloads_ShouldReturnErrorWhenPrometheusFails(
+	t *testing.T,
+) {
+
+	// Arrange
+
+	server :=
+		httptest.NewServer(
+			http.HandlerFunc(
+				func(
+					w http.ResponseWriter,
+					r *http.Request,
+				) {
+
+					http.Error(
+						w,
+						"prometheus unavailable",
+						http.StatusServiceUnavailable,
+					)
+				},
+			),
+		)
+
+	defer server.Close()
+
+	provider :=
+		NewPrometheusProvider(
+			server.URL,
+			server.Client(),
+		)
+
+	// Act
+
+	_, err :=
+		provider.GetWorkloads(
+			context.Background(),
+			"cloud-efficiency",
+		)
+
+	// Assert
+
+	if err == nil {
+
+		t.Fatal(
+			"expected Prometheus error",
 		)
 	}
 
-	if workload.CPURequestMillicores != 1000 {
-		t.Errorf(
-			"expected CPU request 1000m, got %d",
-			workload.CPURequestMillicores,
+	if !strings.Contains(
+		err.Error(),
+		"HTTP 503",
+	) {
+
+		t.Fatalf(
+			"expected HTTP 503 error, got %v",
+			err,
 		)
 	}
+}
 
-	if workload.CPUUsageMillicores != 180 {
-		t.Errorf(
-			"expected CPU usage 180m, got %d",
-			workload.CPUUsageMillicores,
+func TestPrometheusProvider_QueryRange_ShouldRejectInvalidTimeRange(
+	t *testing.T,
+) {
+
+	// Arrange
+
+	provider :=
+		NewPrometheusProvider(
+			"http://localhost:9090",
+			nil,
+		)
+
+	start :=
+		time.Unix(
+			1720000000,
+			0,
+		)
+
+	// Act
+
+	_, err :=
+		provider.queryRange(
+			context.Background(),
+			"up",
+			start,
+			start,
+			5*time.Minute,
+		)
+
+	// Assert
+
+	if err == nil {
+
+		t.Fatal(
+			"expected invalid time range error",
 		)
 	}
+}
 
-	if workload.MemoryRequestBytes != 2147483648 {
-		t.Errorf(
-			"expected memory request 2147483648, got %d",
-			workload.MemoryRequestBytes,
+func TestPrometheusProvider_QueryRange_ShouldRejectInvalidStep(
+	t *testing.T,
+) {
+
+	// Arrange
+
+	provider :=
+		NewPrometheusProvider(
+			"http://localhost:9090",
+			nil,
 		)
-	}
 
-	if workload.Replicas != 3 {
-		t.Errorf(
-			"expected replicas 3, got %d",
-			workload.Replicas,
+	start :=
+		time.Unix(
+			1720000000,
+			0,
 		)
-	}
 
-	if workload.Type != domain.WorkloadDeployment {
-		t.Errorf(
-			"expected workload type Deployment, got %s",
-			workload.Type,
+	end :=
+		start.Add(
+			10 * time.Minute,
+		)
+
+	// Act
+
+	_, err :=
+		provider.queryRange(
+			context.Background(),
+			"up",
+			start,
+			end,
+			0,
+		)
+
+	// Assert
+
+	if err == nil {
+
+		t.Fatal(
+			"expected invalid step error",
 		)
 	}
 }

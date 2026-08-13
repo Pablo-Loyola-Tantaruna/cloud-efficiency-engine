@@ -1,11 +1,10 @@
 package analysis
 
-import (
-	"time"
-)
+import "time"
 
 type AnalysisOptions struct {
-	Start time.Time
-	End   time.Time
-	Step  time.Duration
+	Namespace string
+	Start     time.Time
+	End       time.Time
+	Step      time.Duration
 }

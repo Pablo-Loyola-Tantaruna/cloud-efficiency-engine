@@ -38,7 +38,6 @@ func NewEngine(
 ) *Engine {
 
 	if recommendationResolver == nil {
-
 		recommendationResolver =
 			resolver.NewResolver()
 	}
@@ -68,7 +67,10 @@ func (e *Engine) Analyze(
 ) (*AnalysisReport, error) {
 
 	workloads, err :=
-		e.provider.GetWorkloads(ctx)
+		e.provider.GetWorkloads(
+			ctx,
+			options.Namespace,
+		)
 
 	if err != nil {
 		return nil, err
@@ -85,6 +87,7 @@ func (e *Engine) Analyze(
 		histories, err =
 			e.historicalProvider.GetWorkloadHistory(
 				ctx,
+				options.Namespace,
 				options.Start,
 				options.End,
 				options.Step,
@@ -157,22 +160,25 @@ func (e *Engine) analyzeWorkload(
 			),
 		}
 
-	if len(histories) == 0 {
-		return result
+	var history *domain.WorkloadHistory
+
+	if len(histories) > 0 {
+
+		matchedHistory, err :=
+			MatchHistory(
+				workload,
+				histories,
+			)
+
+		if err == nil {
+
+			history =
+				matchedHistory
+
+			result.History =
+				matchedHistory
+		}
 	}
-
-	history, err :=
-		MatchHistory(
-			workload,
-			histories,
-		)
-
-	if err != nil {
-		return result
-	}
-
-	result.History =
-		history
 
 	recommendations :=
 		make(
@@ -198,7 +204,8 @@ func (e *Engine) analyzeWorkload(
 			)
 	}
 
-	if e.optimizer != nil {
+	if history != nil &&
+		e.optimizer != nil {
 
 		cpuRecommendation, err :=
 			e.optimizer.OptimizeCPU(
@@ -206,11 +213,8 @@ func (e *Engine) analyzeWorkload(
 				*history,
 			)
 
-		if err != nil {
-			return result
-		}
-
-		if cpuRecommendation != nil {
+		if err == nil &&
+			cpuRecommendation != nil {
 
 			recommendation :=
 				optimizer.ToCPURecommendation(
@@ -234,11 +238,8 @@ func (e *Engine) analyzeWorkload(
 				*history,
 			)
 
-		if err != nil {
-			return result
-		}
-
-		if memoryRecommendation != nil {
+		if err == nil &&
+			memoryRecommendation != nil {
 
 			recommendation :=
 				optimizer.ToMemoryRecommendation(
@@ -281,8 +282,11 @@ func (e *Engine) analyzeWorkload(
 			&estimate
 	}
 
-	result.Status =
-		WorkloadAnalysisStatusAnalyzed
+	if history != nil {
+
+		result.Status =
+			WorkloadAnalysisStatusAnalyzed
+	}
 
 	return result
 }

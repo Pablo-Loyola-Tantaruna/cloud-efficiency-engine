@@ -18,8 +18,8 @@ type PrometheusProvider struct {
 }
 
 type prometheusResult struct {
-	Metric map[string]string
-	Value  []interface{}
+	Metric map[string]string `json:"metric"`
+	Value  []interface{}     `json:"value"`
 }
 
 type prometheusRangeResult struct {
@@ -39,23 +39,6 @@ type prometheusRangeResponse struct {
 	Error     string `json:"error,omitempty"`
 }
 
-func NewPrometheusProvider(
-	baseURL string,
-	httpClient *http.Client,
-) *PrometheusProvider {
-
-	if httpClient == nil {
-		httpClient = &http.Client{
-			Timeout: 10 * time.Second,
-		}
-	}
-
-	return &PrometheusProvider{
-		baseURL:    baseURL,
-		httpClient: httpClient,
-	}
-}
-
 type prometheusResponse struct {
 	Status string `json:"status"`
 
@@ -68,35 +51,74 @@ type prometheusResponse struct {
 	Error     string `json:"error,omitempty"`
 }
 
+func NewPrometheusProvider(
+	baseURL string,
+	httpClient *http.Client,
+) *PrometheusProvider {
+
+	if httpClient == nil {
+
+		httpClient = &http.Client{
+			Timeout: 10 * time.Second,
+		}
+	}
+
+	return &PrometheusProvider{
+		baseURL:    baseURL,
+		httpClient: httpClient,
+	}
+}
+
+func workloadMetricQuery(
+	metric string,
+	namespace string,
+) string {
+
+	return metric +
+		`{namespace="` +
+		namespace +
+		`"}`
+}
+
 func (p *PrometheusProvider) query(
 	ctx context.Context,
 	query string,
 ) ([]prometheusResult, error) {
 
-	endpoint, err := url.Parse(
-		p.baseURL + "/api/v1/query",
-	)
+	endpoint, err :=
+		url.Parse(
+			p.baseURL + "/api/v1/query",
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	params := endpoint.Query()
-	params.Set("query", query)
-	endpoint.RawQuery = params.Encode()
+	params :=
+		endpoint.Query()
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		endpoint.String(),
-		nil,
+	params.Set(
+		"query",
+		query,
 	)
+
+	endpoint.RawQuery =
+		params.Encode()
+
+	req, err :=
+		http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			endpoint.String(),
+			nil,
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := p.httpClient.Do(req)
+	response, err :=
+		p.httpClient.Do(req)
 
 	if err != nil {
 		return nil, err
@@ -104,7 +126,9 @@ func (p *PrometheusProvider) query(
 
 	defer response.Body.Close()
 
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
+	if response.StatusCode < 200 ||
+		response.StatusCode >= 300 {
+
 		return nil, fmt.Errorf(
 			"prometheus returned HTTP %d",
 			response.StatusCode,
@@ -113,11 +137,16 @@ func (p *PrometheusProvider) query(
 
 	var payload prometheusResponse
 
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+	if err :=
+		json.NewDecoder(
+			response.Body,
+		).Decode(&payload); err != nil {
+
 		return nil, err
 	}
 
 	if payload.Status != "success" {
+
 		return nil, fmt.Errorf(
 			"prometheus query failed: %s",
 			payload.Error,
@@ -135,27 +164,54 @@ func (p *PrometheusProvider) queryRange(
 	step time.Duration,
 ) ([]prometheusRangeResult, error) {
 
-	if end.Before(start) || end.Equal(start) {
-		return nil, fmt.Errorf("invalid time range")
+	if end.Before(start) ||
+		end.Equal(start) {
+
+		return nil, fmt.Errorf(
+			"invalid time range",
+		)
 	}
 
 	if step <= 0 {
-		return nil, fmt.Errorf("step must be greater than zero")
+
+		return nil, fmt.Errorf(
+			"step must be greater than zero",
+		)
 	}
 
-	endpoint, err := url.Parse(
-		p.baseURL + "/api/v1/query_range",
-	)
+	endpoint, err :=
+		url.Parse(
+			p.baseURL + "/api/v1/query_range",
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	params := endpoint.Query()
+	params :=
+		endpoint.Query()
 
-	params.Set("query", query)
-	params.Set("start", strconv.FormatInt(start.Unix(), 10))
-	params.Set("end", strconv.FormatInt(end.Unix(), 10))
+	params.Set(
+		"query",
+		query,
+	)
+
+	params.Set(
+		"start",
+		strconv.FormatInt(
+			start.Unix(),
+			10,
+		),
+	)
+
+	params.Set(
+		"end",
+		strconv.FormatInt(
+			end.Unix(),
+			10,
+		),
+	)
+
 	params.Set(
 		"step",
 		strconv.FormatInt(
@@ -164,20 +220,23 @@ func (p *PrometheusProvider) queryRange(
 		),
 	)
 
-	endpoint.RawQuery = params.Encode()
+	endpoint.RawQuery =
+		params.Encode()
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		endpoint.String(),
-		nil,
-	)
+	req, err :=
+		http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			endpoint.String(),
+			nil,
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := p.httpClient.Do(req)
+	response, err :=
+		p.httpClient.Do(req)
 
 	if err != nil {
 		return nil, err
@@ -196,14 +255,16 @@ func (p *PrometheusProvider) queryRange(
 
 	var payload prometheusRangeResponse
 
-	if err := json.NewDecoder(
-		response.Body,
-	).Decode(&payload); err != nil {
+	if err :=
+		json.NewDecoder(
+			response.Body,
+		).Decode(&payload); err != nil {
 
 		return nil, err
 	}
 
 	if payload.Status != "success" {
+
 		return nil, fmt.Errorf(
 			"prometheus range query failed: %s",
 			payload.Error,
@@ -218,74 +279,93 @@ func parsePrometheusValue(
 ) (float64, error) {
 
 	if len(value) < 2 {
-		return 0, fmt.Errorf("invalid prometheus value")
+
+		return 0, fmt.Errorf(
+			"invalid prometheus value",
+		)
 	}
 
-	rawValue, ok := value[1].(string)
+	rawValue, ok :=
+		value[1].(string)
 
 	if !ok {
-		return 0, fmt.Errorf("invalid prometheus numeric value")
+
+		return 0, fmt.Errorf(
+			"invalid prometheus numeric value",
+		)
 	}
 
-	return strconv.ParseFloat(rawValue, 64)
+	return strconv.ParseFloat(
+		rawValue,
+		64,
+	)
 }
 
 func parsePrometheusRangeValues(
 	values [][]interface{},
 ) ([]domain.MetricSample, error) {
 
-	result := make(
-		[]domain.MetricSample,
-		0,
-		len(values),
-	)
+	result :=
+		make(
+			[]domain.MetricSample,
+			0,
+			len(values),
+		)
 
 	for _, value := range values {
 
 		if len(value) < 2 {
+
 			return nil, fmt.Errorf(
 				"invalid prometheus range value",
 			)
 		}
 
-		rawTimestamp, ok := value[0].(float64)
+		rawTimestamp, ok :=
+			value[0].(float64)
 
 		if !ok {
+
 			return nil, fmt.Errorf(
 				"invalid prometheus timestamp",
 			)
 		}
 
-		rawValue, ok := value[1].(string)
+		rawValue, ok :=
+			value[1].(string)
 
 		if !ok {
+
 			return nil, fmt.Errorf(
 				"invalid prometheus range numeric value",
 			)
 		}
 
-		parsedValue, err := strconv.ParseFloat(
-			rawValue,
-			64,
-		)
+		parsedValue, err :=
+			strconv.ParseFloat(
+				rawValue,
+				64,
+			)
 
 		if err != nil {
+
 			return nil, fmt.Errorf(
 				"parse prometheus range value: %w",
 				err,
 			)
 		}
 
-		result = append(
-			result,
-			domain.MetricSample{
-				Timestamp: time.Unix(
-					int64(rawTimestamp),
-					0,
-				),
-				Value: parsedValue,
-			},
-		)
+		result =
+			append(
+				result,
+				domain.MetricSample{
+					Timestamp: time.Unix(
+						int64(rawTimestamp),
+						0,
+					),
+					Value: parsedValue,
+				},
+			)
 	}
 
 	return result, nil
@@ -293,48 +373,69 @@ func parsePrometheusRangeValues(
 
 func (p *PrometheusProvider) GetWorkloads(
 	ctx context.Context,
+	namespace string,
 ) ([]domain.WorkloadMetrics, error) {
 
-	cpuRequests, err := p.query(
-		ctx,
-		`cee_workload_cpu_request_millicores`,
-	)
+	cpuRequests, err :=
+		p.query(
+			ctx,
+			workloadMetricQuery(
+				"cee_workload_cpu_request_millicores",
+				namespace,
+			),
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	cpuUsage, err := p.query(
-		ctx,
-		`cee_workload_cpu_usage_millicores`,
-	)
+	cpuUsage, err :=
+		p.query(
+			ctx,
+			workloadMetricQuery(
+				"cee_workload_cpu_usage_millicores",
+				namespace,
+			),
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	memoryRequests, err := p.query(
-		ctx,
-		`cee_workload_memory_request_bytes`,
-	)
+	memoryRequests, err :=
+		p.query(
+			ctx,
+			workloadMetricQuery(
+				"cee_workload_memory_request_bytes",
+				namespace,
+			),
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	memoryUsage, err := p.query(
-		ctx,
-		`cee_workload_memory_usage_bytes`,
-	)
+	memoryUsage, err :=
+		p.query(
+			ctx,
+			workloadMetricQuery(
+				"cee_workload_memory_usage_bytes",
+				namespace,
+			),
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	replicas, err := p.query(
-		ctx,
-		`cee_workload_replicas`,
-	)
+	replicas, err :=
+		p.query(
+			ctx,
+			workloadMetricQuery(
+				"cee_workload_replicas",
+				namespace,
+			),
+		)
 
 	if err != nil {
 		return nil, err
@@ -351,30 +452,39 @@ func (p *PrometheusProvider) GetWorkloads(
 
 func (p *PrometheusProvider) GetWorkloadHistory(
 	ctx context.Context,
+	namespace string,
 	start time.Time,
 	end time.Time,
 	step time.Duration,
 ) ([]domain.WorkloadHistory, error) {
 
-	cpuResults, err := p.queryRange(
-		ctx,
-		`cee_workload_cpu_usage_millicores`,
-		start,
-		end,
-		step,
-	)
+	cpuResults, err :=
+		p.queryRange(
+			ctx,
+			workloadMetricQuery(
+				"cee_workload_cpu_usage_millicores",
+				namespace,
+			),
+			start,
+			end,
+			step,
+		)
 
 	if err != nil {
 		return nil, err
 	}
 
-	memoryResults, err := p.queryRange(
-		ctx,
-		`cee_workload_memory_usage_bytes`,
-		start,
-		end,
-		step,
-	)
+	memoryResults, err :=
+		p.queryRange(
+			ctx,
+			workloadMetricQuery(
+				"cee_workload_memory_usage_bytes",
+				namespace,
+			),
+			start,
+			end,
+			step,
+		)
 
 	if err != nil {
 		return nil, err

@@ -22,14 +22,11 @@ func NewMockHistoricalProvider(
 
 func (p *MockHistoricalProvider) GetWorkloadHistory(
 	ctx context.Context,
+	namespace string,
 	start time.Time,
 	end time.Time,
 	step time.Duration,
 ) ([]domain.WorkloadHistory, error) {
-
-	if end.Before(start) {
-		return nil, nil
-	}
 
 	result :=
 		make(
@@ -40,41 +37,15 @@ func (p *MockHistoricalProvider) GetWorkloadHistory(
 
 	for _, history := range p.histories {
 
-		filtered := domain.WorkloadHistory{
-			Namespace: history.Namespace,
-			Name:      history.Name,
+		if history.Namespace != namespace {
+			continue
 		}
 
-		for _, sample := range history.CPUUsageMillicores {
-
-			if !sample.Timestamp.Before(start) &&
-				!sample.Timestamp.After(end) {
-
-				filtered.CPUUsageMillicores =
-					append(
-						filtered.CPUUsageMillicores,
-						sample,
-					)
-			}
-		}
-
-		for _, sample := range history.MemoryUsageBytes {
-
-			if !sample.Timestamp.Before(start) &&
-				!sample.Timestamp.After(end) {
-
-				filtered.MemoryUsageBytes =
-					append(
-						filtered.MemoryUsageBytes,
-						sample,
-					)
-			}
-		}
-
-		result = append(
-			result,
-			filtered,
-		)
+		result =
+			append(
+				result,
+				history,
+			)
 	}
 
 	return result, nil

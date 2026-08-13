@@ -107,6 +107,8 @@ func TestEngine_Analyze_ShouldCalculateCostUsingPricingProvider(
 
 	options :=
 		AnalysisOptions{
+			Namespace: "payments",
+
 			Start: now.Add(
 				-7 * 24 * time.Hour,
 			),
@@ -138,6 +140,14 @@ func TestEngine_Analyze_ShouldCalculateCostUsingPricingProvider(
 
 		t.Fatal(
 			"expected analysis report",
+		)
+	}
+
+	if result.Summary.TotalWorkloads != 1 {
+
+		t.Fatalf(
+			"expected 1 workload, got %d",
+			result.Summary.TotalWorkloads,
 		)
 	}
 

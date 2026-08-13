@@ -10,6 +10,7 @@ import (
 type HistoricalProvider interface {
 	GetWorkloadHistory(
 		ctx context.Context,
+		namespace string,
 		start time.Time,
 		end time.Time,
 		step time.Duration,

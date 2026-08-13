@@ -7,5 +7,8 @@ import (
 )
 
 type Provider interface {
-	GetWorkloads(ctx context.Context) ([]domain.WorkloadMetrics, error)
+	GetWorkloads(
+		ctx context.Context,
+		namespace string,
+	) ([]domain.WorkloadMetrics, error)
 }
