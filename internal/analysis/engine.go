@@ -14,7 +14,8 @@ import (
 )
 
 type Engine struct {
-	provider           metrics.Provider
+	provider metrics.Provider
+
 	historicalProvider metrics.HistoricalProvider
 
 	pricingProvider pricing.Provider
@@ -22,7 +23,8 @@ type Engine struct {
 	rules []rules.Rule
 
 	optimizer *optimizer.Engine
-	resolver  *resolver.Resolver
+
+	resolver *resolver.Resolver
 
 	costCalculator *cost.Calculator
 }
@@ -38,6 +40,7 @@ func NewEngine(
 ) *Engine {
 
 	if recommendationResolver == nil {
+
 		recommendationResolver =
 			resolver.NewResolver()
 	}
@@ -85,13 +88,14 @@ func (e *Engine) Analyze(
 	if e.historicalProvider != nil {
 
 		histories, err =
-			e.historicalProvider.GetWorkloadHistory(
-				ctx,
-				options.Namespace,
-				options.Start,
-				options.End,
-				options.Step,
-			)
+			e.historicalProvider.
+				GetWorkloadHistory(
+					ctx,
+					options.Namespace,
+					options.Start,
+					options.End,
+					options.Step,
+				)
 
 		if err != nil {
 			return nil, err
@@ -103,7 +107,9 @@ func (e *Engine) Analyze(
 	if e.pricingProvider != nil {
 
 		prices, err =
-			e.pricingProvider.GetPricing(ctx)
+			e.pricingProvider.GetPricing(
+				ctx,
+			)
 
 		if err != nil {
 			return nil, err
@@ -118,6 +124,11 @@ func (e *Engine) Analyze(
 				[]WorkloadAnalysis,
 				0,
 				len(workloads),
+			),
+
+			NamespaceBreakdown: make(
+				[]NamespaceCostBreakdown,
+				0,
 			),
 		}
 
@@ -137,7 +148,14 @@ func (e *Engine) Analyze(
 			)
 	}
 
-	e.calculateSummary(report)
+	e.calculateSummary(
+		report,
+	)
+
+	report.NamespaceBreakdown =
+		buildNamespaceCostBreakdown(
+			report.Workloads,
+		)
 
 	return report, nil
 }
@@ -296,11 +314,15 @@ func (e *Engine) calculateSummary(
 ) {
 
 	report.Summary.TotalWorkloads =
-		len(report.Workloads)
+		len(
+			report.Workloads,
+		)
 
 	for _, workload := range report.Workloads {
 
-		if len(workload.Recommendations) > 0 {
+		if len(
+			workload.Recommendations,
+		) > 0 {
 
 			report.Summary.
 				OptimizableWorkloads++
@@ -310,21 +332,31 @@ func (e *Engine) calculateSummary(
 			continue
 		}
 
-		report.Summary.CurrentMonthlyCostUSD +=
-			workload.Cost.CurrentMonthlyCostUSD
+		report.Summary.
+			CurrentMonthlyCostUSD +=
+			workload.Cost.
+				CurrentMonthlyCostUSD
 
-		report.Summary.OptimizedMonthlyCostUSD +=
-			workload.Cost.OptimizedMonthlyCostUSD
+		report.Summary.
+			OptimizedMonthlyCostUSD +=
+			workload.Cost.
+				OptimizedMonthlyCostUSD
 
-		report.Summary.PotentialSavingsUSD +=
-			workload.Cost.PotentialSavingsUSD
+		report.Summary.
+			PotentialSavingsUSD +=
+			workload.Cost.
+				PotentialSavingsUSD
 	}
 
-	if report.Summary.CurrentMonthlyCostUSD > 0 {
+	if report.Summary.
+		CurrentMonthlyCostUSD > 0 {
 
-		report.Summary.SavingsPercentage =
-			report.Summary.PotentialSavingsUSD /
-				report.Summary.CurrentMonthlyCostUSD *
+		report.Summary.
+			SavingsPercentage =
+			report.Summary.
+				PotentialSavingsUSD /
+				report.Summary.
+					CurrentMonthlyCostUSD *
 				100
 	}
 }

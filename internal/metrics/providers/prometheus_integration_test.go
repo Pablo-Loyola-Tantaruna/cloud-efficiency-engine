@@ -29,47 +29,47 @@ func TestPrometheusProvider_GetWorkloads_Integration(
 
 					switch query {
 
-					case `cee_workload_cpu_request_millicores{namespace="cloud-efficiency"}`:
+					case `cee_workload_cpu_request_millicores{namespace="cloud-efficiency-engine"}`:
 
 						response =
 							prometheusVectorResponse(
-								"cloud-efficiency",
+								"cloud-efficiency-engine",
 								"payments-api",
 								"1000",
 							)
 
-					case `cee_workload_cpu_usage_millicores{namespace="cloud-efficiency"}`:
+					case `cee_workload_cpu_usage_millicores{namespace="cloud-efficiency-engine"}`:
 
 						response =
 							prometheusVectorResponse(
-								"cloud-efficiency",
+								"cloud-efficiency-engine",
 								"payments-api",
 								"350",
 							)
 
-					case `cee_workload_memory_request_bytes{namespace="cloud-efficiency"}`:
+					case `cee_workload_memory_request_bytes{namespace="cloud-efficiency-engine"}`:
 
 						response =
 							prometheusVectorResponse(
-								"cloud-efficiency",
+								"cloud-efficiency-engine",
 								"payments-api",
 								"2147483648",
 							)
 
-					case `cee_workload_memory_usage_bytes{namespace="cloud-efficiency"}`:
+					case `cee_workload_memory_usage_bytes{namespace="cloud-efficiency-engine"}`:
 
 						response =
 							prometheusVectorResponse(
-								"cloud-efficiency",
+								"cloud-efficiency-engine",
 								"payments-api",
 								"734003200",
 							)
 
-					case `cee_workload_replicas{namespace="cloud-efficiency"}`:
+					case `cee_workload_replicas{namespace="cloud-efficiency-engine"}`:
 
 						response =
 							prometheusVectorResponse(
-								"cloud-efficiency",
+								"cloud-efficiency-engine",
 								"payments-api",
 								"3",
 							)
@@ -117,7 +117,7 @@ func TestPrometheusProvider_GetWorkloads_Integration(
 	workloads, err :=
 		provider.GetWorkloads(
 			context.Background(),
-			"cloud-efficiency",
+			"cloud-efficiency-engine",
 		)
 
 	// Assert
@@ -142,10 +142,10 @@ func TestPrometheusProvider_GetWorkloads_Integration(
 		workloads[0]
 
 	if workload.Namespace !=
-		"cloud-efficiency" {
+		"cloud-efficiency-engine" {
 
 		t.Fatalf(
-			"expected namespace cloud-efficiency, got %s",
+			"expected namespace cloud-efficiency-engine, got %s",
 			workload.Namespace,
 		)
 	}

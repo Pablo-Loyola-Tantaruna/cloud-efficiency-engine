@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-efficiency-engine
+  namespace: cloud-efficiency-engine
+  labels:
+    app: cloud-efficiency-engine
+    app.kubernetes.io/name: cloud-efficiency-engine
+    app.kubernetes.io/part-of: cloud-efficiency-engine
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: cloud-efficiency-engine
+
+  template:
+    metadata:
+      labels:
+        app: cloud-efficiency-engine
+        app.kubernetes.io/name: cloud-efficiency-engine
+        app.kubernetes.io/part-of: cloud-efficiency-engine
+
+    spec:
+      containers:
+        - name: cloud-efficiency-engine
+          image: cloud-efficiency-engine:dev
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          env:
+            - name: METRICS_PROVIDER
+              value: "prometheus"
+
+            - name: PROMETHEUS_URL
+              value: "http://monitoring-kube-prometheus-prometheus.monitoring.svc:9090"
+
+            - name: ANALYSIS_NAMESPACE
+              value: "cloud-efficiency-engine"
+
+            - name: ANALYSIS_INTERVAL
+              value: "1m"
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3

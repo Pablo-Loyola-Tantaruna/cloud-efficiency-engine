@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - develop
+      - "feature/**"
+
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+
+  test:
+
+    name: Go Test
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+          cache: true
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          test -z "$(gofmt -l .)"
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Unit and integration tests
+        run: go test ./...
+
+      - name: Race detector
+        run: go test -race ./...
+
+      - name: Static analysis
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+  docker:
+
+    name: Docker Build
+
+    runs-on: ubuntu-latest
+
+    needs:
+      - test
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t cloud-efficiency-engine:${{ github.sha }} \
+            .
+
+  helm:
+
+    name: Helm Validation
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: |
+          helm lint \
+            deployments/helm/cloud-efficiency-engine
+
+      - name: Helm template
+        run: |
+          helm template \
+            cloud-efficiency-engine \
+            deployments/helm/cloud-efficiency-engine \
+            --namespace cloud-efficiency-engine
+
+      - name: Helm template validation
+        run: |
+          helm template \
+            cloud-efficiency-engine \
+            deployments/helm/cloud-efficiency-engine \
+            --namespace cloud-efficiency \
+            > rendered.yaml
+
+          test -s rendered.yaml

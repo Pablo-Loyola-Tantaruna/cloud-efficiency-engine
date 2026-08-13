@@ -27,7 +27,11 @@ func TestHandler_Health_ShouldReturn200(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -69,7 +73,11 @@ func TestHandler_Ready_ShouldReturn200(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -100,7 +108,11 @@ func TestHandler_Analyze_ShouldRejectInvalidJSON(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -145,7 +157,11 @@ func TestHandler_Analyze_ShouldRejectEmptyNamespace(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -193,7 +209,11 @@ func TestHandler_Analyze_ShouldRejectWhitespaceNamespace(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -230,7 +250,11 @@ func TestHandler_Analyze_ShouldRejectLookbackBelowMinimum(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -238,7 +262,7 @@ func TestHandler_Analyze_ShouldRejectLookbackBelowMinimum(
 			"/api/v1/analyze",
 			strings.NewReader(
 				`{
-					"namespace": "cloud-efficiency",
+					"namespace": "cloud-efficiency-engine",
 					"lookbackHours": -1,
 					"stepSeconds": 300
 				}`,
@@ -267,7 +291,11 @@ func TestHandler_Analyze_ShouldRejectLookbackAboveMaximum(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -275,7 +303,7 @@ func TestHandler_Analyze_ShouldRejectLookbackAboveMaximum(
 			"/api/v1/analyze",
 			strings.NewReader(
 				`{
-					"namespace": "cloud-efficiency",
+					"namespace": "cloud-efficiency-engine",
 					"lookbackHours": 721,
 					"stepSeconds": 300
 				}`,
@@ -304,7 +332,11 @@ func TestHandler_Analyze_ShouldRejectStepBelowMinimum(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -312,7 +344,7 @@ func TestHandler_Analyze_ShouldRejectStepBelowMinimum(
 			"/api/v1/analyze",
 			strings.NewReader(
 				`{
-					"namespace": "cloud-efficiency",
+					"namespace": "cloud-efficiency-engine",
 					"lookbackHours": 168,
 					"stepSeconds": 14
 				}`,
@@ -341,7 +373,11 @@ func TestHandler_Analyze_ShouldRejectStepAboveMaximum(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -349,7 +385,7 @@ func TestHandler_Analyze_ShouldRejectStepAboveMaximum(
 			"/api/v1/analyze",
 			strings.NewReader(
 				`{
-					"namespace": "cloud-efficiency",
+					"namespace": "cloud-efficiency-engine",
 					"lookbackHours": 168,
 					"stepSeconds": 3601
 				}`,
@@ -378,7 +414,11 @@ func TestHandler_Analyze_ShouldRejectUnsupportedMethod(
 	t *testing.T,
 ) {
 
-	handler := NewHandler(nil)
+	handler :=
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -415,8 +455,14 @@ func TestHandler_Analyze_ShouldReturn500WhenEngineFails(
 			err: context.Canceled,
 		}
 
+	analysisMetrics :=
+		NewAnalysisMetrics()
+
 	handler :=
-		NewHandler(service)
+		NewHandler(
+			service,
+			analysisMetrics,
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -424,7 +470,7 @@ func TestHandler_Analyze_ShouldReturn500WhenEngineFails(
 			"/api/v1/analyze",
 			strings.NewReader(
 				`{
-					"namespace": "cloud-efficiency",
+					"namespace": "cloud-efficiency-engine",
 					"lookbackHours": 168,
 					"stepSeconds": 300
 				}`,
@@ -471,8 +517,14 @@ func TestHandler_Analyze_ShouldReturn200(
 			report: &analysis.AnalysisReport{},
 		}
 
+	analysisMetrics :=
+		NewAnalysisMetrics()
+
 	handler :=
-		NewHandler(service)
+		NewHandler(
+			service,
+			analysisMetrics,
+		)
 
 	request :=
 		httptest.NewRequest(
@@ -480,7 +532,7 @@ func TestHandler_Analyze_ShouldReturn200(
 			"/api/v1/analyze",
 			strings.NewReader(
 				`{
-					"namespace": "cloud-efficiency",
+					"namespace": "cloud-efficiency-engine",
 					"lookbackHours": 168,
 					"stepSeconds": 300
 				}`,

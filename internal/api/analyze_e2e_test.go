@@ -25,7 +25,7 @@ func TestAPI_Analyze_EndToEnd_ShouldReturnAnalysisReport(
 	// Arrange
 
 	namespace :=
-		"cloud-efficiency"
+		"cloud-efficiency-engine"
 
 	workload :=
 		domain.WorkloadMetrics{
@@ -114,11 +114,22 @@ func TestAPI_Analyze_EndToEnd_ShouldReturnAnalysisReport(
 			calculator,
 		)
 
+	analysisMetrics :=
+		NewAnalysisMetrics()
+
 	handler :=
-		NewHandler(engine)
+		NewHandler(
+			engine,
+			analysisMetrics,
+		)
 
 	router :=
-		NewRouter(handler)
+		NewRouter(
+			handler,
+			NewLogger(),
+			NewHTTPMetrics(),
+			NewAnalysisMetrics(),
+		)
 
 	server :=
 		httptest.NewServer(router)
@@ -129,7 +140,7 @@ func TestAPI_Analyze_EndToEnd_ShouldReturnAnalysisReport(
 
 	body :=
 		`{
-			"namespace": "cloud-efficiency",
+			"namespace": "cloud-efficiency-engine",
 			"lookbackHours": 24,
 			"stepSeconds": 300
 		}`
@@ -310,10 +321,18 @@ func TestAPI_Analyze_ShouldRejectInvalidRequest(
 	// Arrange
 
 	handler :=
-		NewHandler(nil)
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	router :=
-		NewRouter(handler)
+		NewRouter(
+			handler,
+			NewLogger(),
+			NewHTTPMetrics(),
+			NewAnalysisMetrics(),
+		)
 
 	server :=
 		httptest.NewServer(router)
@@ -379,10 +398,18 @@ func TestAPI_Analyze_ShouldRejectUnsupportedMethod(
 	// Arrange
 
 	handler :=
-		NewHandler(nil)
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	router :=
-		NewRouter(handler)
+		NewRouter(
+			handler,
+			NewLogger(),
+			NewHTTPMetrics(),
+			NewAnalysisMetrics(),
+		)
 
 	server :=
 		httptest.NewServer(router)
@@ -437,10 +464,18 @@ func TestAPI_Health_ShouldReturnUP(
 	// Arrange
 
 	handler :=
-		NewHandler(nil)
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	router :=
-		NewRouter(handler)
+		NewRouter(
+			handler,
+			NewLogger(),
+			NewHTTPMetrics(),
+			NewAnalysisMetrics(),
+		)
 
 	server :=
 		httptest.NewServer(router)
@@ -483,10 +518,18 @@ func TestAPI_Ready_ShouldReturnUP(
 	// Arrange
 
 	handler :=
-		NewHandler(nil)
+		NewHandler(
+			nil,
+			NewAnalysisMetrics(),
+		)
 
 	router :=
-		NewRouter(handler)
+		NewRouter(
+			handler,
+			NewLogger(),
+			NewHTTPMetrics(),
+			NewAnalysisMetrics(),
+		)
 
 	server :=
 		httptest.NewServer(router)

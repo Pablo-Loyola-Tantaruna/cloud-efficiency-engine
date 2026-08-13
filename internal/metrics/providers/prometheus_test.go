@@ -31,7 +31,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldFilterByNamespace(
 
 					if !strings.Contains(
 						query,
-						`namespace="cloud-efficiency"`,
+						`namespace="cloud-efficiency-engine"`,
 					) {
 
 						t.Errorf(
@@ -49,7 +49,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldFilterByNamespace(
 							"result": []map[string]interface{}{
 								{
 									"metric": map[string]string{
-										"namespace": "cloud-efficiency",
+										"namespace": "cloud-efficiency-engine",
 										"workload":  "payments-api",
 									},
 
@@ -91,7 +91,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldFilterByNamespace(
 	_, err :=
 		provider.GetWorkloads(
 			context.Background(),
-			"cloud-efficiency",
+			"cloud-efficiency-engine",
 		)
 
 	// Assert
@@ -145,7 +145,7 @@ func TestPrometheusProvider_QueryRange_ShouldSendNamespace(
 
 					if !strings.Contains(
 						query,
-						`namespace="cloud-efficiency"`,
+						`namespace="cloud-efficiency-engine"`,
 					) {
 
 						t.Errorf(
@@ -163,7 +163,7 @@ func TestPrometheusProvider_QueryRange_ShouldSendNamespace(
 							"result": []map[string]interface{}{
 								{
 									"metric": map[string]string{
-										"namespace": "cloud-efficiency",
+										"namespace": "cloud-efficiency-engine",
 										"workload":  "payments-api",
 									},
 
@@ -225,7 +225,7 @@ func TestPrometheusProvider_QueryRange_ShouldSendNamespace(
 	result, err :=
 		provider.queryRange(
 			context.Background(),
-			`cee_workload_cpu_usage_millicores{namespace="cloud-efficiency"}`,
+			`cee_workload_cpu_usage_millicores{namespace="cloud-efficiency-engine"}`,
 			start,
 			end,
 			step,
@@ -250,10 +250,10 @@ func TestPrometheusProvider_QueryRange_ShouldSendNamespace(
 	}
 
 	if result[0].Metric["namespace"] !=
-		"cloud-efficiency" {
+		"cloud-efficiency-engine" {
 
 		t.Fatalf(
-			"expected cloud-efficiency namespace, got %s",
+			"expected cloud-efficiency-engine namespace, got %s",
 			result[0].Metric["namespace"],
 		)
 	}
@@ -277,7 +277,7 @@ func TestWorkloadMetricQuery_ShouldBuildNamespaceSelector(
 		"cee_workload_cpu_usage_millicores"
 
 	namespace :=
-		"cloud-efficiency"
+		"cloud-efficiency-engine"
 
 	// Act
 
@@ -290,7 +290,7 @@ func TestWorkloadMetricQuery_ShouldBuildNamespaceSelector(
 	// Assert
 
 	expected :=
-		`cee_workload_cpu_usage_millicores{namespace="cloud-efficiency"}`
+		`cee_workload_cpu_usage_millicores{namespace="cloud-efficiency-engine"}`
 
 	if query != expected {
 
@@ -338,7 +338,7 @@ func TestPrometheusProvider_GetWorkloads_ShouldReturnErrorWhenPrometheusFails(
 	_, err :=
 		provider.GetWorkloads(
 			context.Background(),
-			"cloud-efficiency",
+			"cloud-efficiency-engine",
 		)
 
 	// Assert

@@ -1,0 +1,81 @@
+replicaCount: 1
+
+image:
+  repository: cloud-efficiency-engine
+  tag: dev
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+namespaceOverride: cloud-efficiency-engine
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+env:
+  metricsProvider: prometheus
+  prometheusUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc:9090
+  analysisNamespace: cloud-efficiency-engine
+  analysisInterval: 1m
+
+analysis:
+  lookbackHours: 168
+  stepSeconds: 300
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+probes:
+  startup:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+  liveness:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+monitoring:
+  enabled: true
+
+  serviceMonitor:
+    interval: 15s
+    scrapeTimeout: 10s
+
+  prometheusRule:
+    enabled: true
+    evaluationInterval: 30s
+
+podAnnotations: {}
+
+podLabels: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+networkPolicy:
+  enabled: true

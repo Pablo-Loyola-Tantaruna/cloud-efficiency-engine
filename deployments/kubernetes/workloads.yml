@@ -3,11 +3,11 @@ kind: Deployment
 
 metadata:
   name: payments-api
-  namespace: cloud-efficiency
+  namespace: cloud-efficiency-engine
 
   labels:
     app: payments-api
-    app.kubernetes.io/part-of: cloud-efficiency-demo
+    app.kubernetes.io/part-of: cloud-efficiency-engine-demo
 
 spec:
 
@@ -51,11 +51,11 @@ kind: Deployment
 
 metadata:
   name: orders-api
-  namespace: cloud-efficiency
+  namespace: cloud-efficiency-engine
 
   labels:
     app: orders-api
-    app.kubernetes.io/part-of: cloud-efficiency-demo
+    app.kubernetes.io/part-of: cloud-efficiency-engine-demo
 
 spec:
 

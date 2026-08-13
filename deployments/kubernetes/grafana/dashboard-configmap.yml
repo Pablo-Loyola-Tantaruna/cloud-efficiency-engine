@@ -1,0 +1,328 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-efficiency-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  cloud-efficiency.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Current Monthly Cost",
+          "description": "Current estimated monthly infrastructure cost.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "targets": [
+            {
+              "expr": "cee_current_monthly_cost_usd",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Optimized Monthly Cost",
+          "description": "Estimated monthly cost after applying recommendations.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "targets": [
+            {
+              "expr": "cee_optimized_monthly_cost_usd",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Potential Monthly Savings",
+          "description": "Estimated monthly savings opportunity.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 12,
+            "y": 0
+          },
+          "targets": [
+            {
+              "expr": "cee_potential_savings_usd",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Savings Opportunity",
+          "description": "Estimated percentage of monthly cost that can potentially be optimized.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 18,
+            "y": 0
+          },
+          "targets": [
+            {
+              "expr": "cee:monthly_savings_percentage",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Analyses",
+          "description": "Total number of analyses executed.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 0,
+            "y": 5
+          },
+          "targets": [
+            {
+              "expr": "cee_analysis_total",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Workloads Analyzed",
+          "description": "Total workloads analyzed by the engine.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 6,
+            "y": 5
+          },
+          "targets": [
+            {
+              "expr": "cee_workloads_analyzed_total",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Optimizable Workloads",
+          "description": "Total workloads identified as optimizable.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 12,
+            "y": 5
+          },
+          "targets": [
+            {
+              "expr": "cee_optimizable_workloads_total",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Analysis Success Rate",
+          "description": "Percentage of successful analysis executions over the recent observation window.",
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 18,
+            "y": 5
+          },
+          "targets": [
+            {
+              "expr": "cee:analysis_success_rate * 100",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "HTTP Requests Per Second",
+          "description": "HTTP request throughput.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 10
+          },
+          "targets": [
+            {
+              "expr": "cee:http_requests_per_second",
+              "legendFormat": "requests/sec",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "HTTP Error Rate",
+          "description": "Ratio of HTTP 5xx responses.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 10
+          },
+          "targets": [
+            {
+              "expr": "cee:http_error_rate * 100",
+              "legendFormat": "error %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Monthly Savings Opportunity",
+          "description": "Current potential savings value over time.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 18
+          },
+          "targets": [
+            {
+              "expr": "cee_potential_savings_usd",
+              "legendFormat": "potential savings",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Savings Opportunity %",
+          "description": "Potential savings percentage.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 18
+          },
+          "targets": [
+            {
+              "expr": "cee:monthly_savings_percentage",
+              "legendFormat": "savings %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2
+            },
+            "overrides": []
+          }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": [
+        "cloud-efficiency-engine",
+        "finops",
+        "kubernetes",
+        "cost-optimization"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "title": "Cloud Efficiency Engine",
+      "uid": "cloud-efficiency-engine",
+      "version": 1
+    }

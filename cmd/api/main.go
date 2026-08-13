@@ -1,9 +1,11 @@
 package main
 
 import (
-	"log"
+	"context"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"cloud-efficiency-engine/internal/analysis"
@@ -15,6 +17,7 @@ import (
 	"cloud-efficiency-engine/internal/domain"
 	"cloud-efficiency-engine/internal/metrics"
 	"cloud-efficiency-engine/internal/metrics/providers"
+	"cloud-efficiency-engine/internal/observability"
 	"cloud-efficiency-engine/internal/pricing"
 )
 
@@ -22,9 +25,14 @@ const (
 	defaultLookbackHours = 7 * 24
 	defaultHistoryStep   = 5 * time.Minute
 	defaultHoursPerMonth = 730.0
+
+	defaultAnalysisInterval = 15 * time.Minute
 )
 
 func main() {
+
+	logger :=
+		api.NewLogger()
 
 	optimizationRules :=
 		[]rules.Rule{
@@ -63,31 +71,186 @@ func main() {
 			calculator,
 		)
 
+	httpMetrics :=
+		api.NewHTTPMetrics()
+
+	analysisMetrics :=
+		api.NewAnalysisMetrics()
+
+	observabilityMetrics :=
+		observability.NewMetrics()
+
 	handler :=
 		api.NewHandler(
 			engine,
+			analysisMetrics,
 		)
 
 	router :=
 		api.NewRouter(
 			handler,
+			logger,
+			httpMetrics,
+			analysisMetrics,
+			observabilityMetrics.Handler(),
 		)
 
 	server :=
 		&http.Server{
-			Addr:    ":8080",
+			Addr: ":8080",
+
 			Handler: router,
+
+			ReadHeaderTimeout: 5 * time.Second,
+
+			ReadTimeout: 15 * time.Second,
+
+			WriteTimeout: 30 * time.Second,
+
+			IdleTimeout: 60 * time.Second,
 		}
 
-	log.Println(
-		"Cloud Efficiency Engine listening on :8080",
+	ctx, stop :=
+		signal.NotifyContext(
+			context.Background(),
+			os.Interrupt,
+			syscall.SIGTERM,
+		)
+
+	defer stop()
+
+	namespace :=
+		os.Getenv(
+			"ANALYSIS_NAMESPACE",
+		)
+
+	if namespace == "" {
+
+		namespace =
+			"cloud-efficiency-engine"
+	}
+
+	analysisInterval :=
+		parseDurationEnv(
+			"ANALYSIS_INTERVAL",
+			defaultAnalysisInterval,
+		)
+
+	scheduler :=
+		analysis.NewScheduler(
+			engine,
+			observabilityMetrics,
+			logger,
+			analysis.SchedulerConfig{
+				Namespace: namespace,
+
+				Interval: analysisInterval,
+
+				LookbackHours: defaultLookbackHours,
+
+				Step: defaultHistoryStep,
+			},
+		)
+
+	go scheduler.Run(
+		ctx,
 	)
 
-	if err :=
-		server.ListenAndServe(); err != nil {
+	serverError :=
+		make(
+			chan error,
+			1,
+		)
 
-		log.Fatal(err)
+	go func() {
+
+		logger.Info(
+			"http_server_started",
+			"addr",
+			server.Addr,
+		)
+
+		serverError <- server.ListenAndServe()
+
+	}()
+
+	select {
+
+	case err :=
+		<-serverError:
+
+		if err != nil &&
+			err != http.ErrServerClosed {
+
+			logger.Error(
+				"http_server_failed",
+				"error",
+				err,
+			)
+
+			os.Exit(1)
+		}
+
+	case <-ctx.Done():
+
+		logger.Info(
+			"shutdown_started",
+		)
 	}
+
+	shutdownContext, cancel :=
+		context.WithTimeout(
+			context.Background(),
+			10*time.Second,
+		)
+
+	defer cancel()
+
+	if err :=
+		server.Shutdown(
+			shutdownContext,
+		); err != nil {
+
+		logger.Error(
+			"http_server_shutdown_failed",
+			"error",
+			err,
+		)
+
+		return
+	}
+
+	logger.Info(
+		"shutdown_completed",
+	)
+}
+
+func parseDurationEnv(
+	name string,
+	fallback time.Duration,
+) time.Duration {
+
+	value :=
+		os.Getenv(name)
+
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err :=
+		time.ParseDuration(value)
+
+	if err != nil {
+
+		return fallback
+	}
+
+	if parsed <= 0 {
+
+		return fallback
+	}
+
+	return parsed
 }
 
 func createMetricsProviders() (
@@ -124,8 +287,7 @@ func createMetricsProviders() (
 
 	return providers.NewMockProvider(
 			mockWorkloads(),
-		),
-		providers.NewMockHistoricalProvider(
+		), providers.NewMockHistoricalProvider(
 			mockHistoricalWorkloads(),
 		)
 }
@@ -144,9 +306,14 @@ func mockWorkloads() []domain.WorkloadMetrics {
 			CPURequestMillicores: 1000,
 			CPUUsageMillicores:   180,
 
-			MemoryRequestBytes: 2 * 1024 * 1024 * 1024,
+			MemoryRequestBytes: 2 *
+				1024 *
+				1024 *
+				1024,
 
-			MemoryUsageBytes: 640 * 1024 * 1024,
+			MemoryUsageBytes: 640 *
+				1024 *
+				1024,
 		},
 		{
 			Namespace: "orders",
@@ -159,9 +326,13 @@ func mockWorkloads() []domain.WorkloadMetrics {
 			CPURequestMillicores: 500,
 			CPUUsageMillicores:   350,
 
-			MemoryRequestBytes: 1024 * 1024 * 1024,
+			MemoryRequestBytes: 1024 *
+				1024 *
+				1024,
 
-			MemoryUsageBytes: 805 * 1024 * 1024,
+			MemoryUsageBytes: 805 *
+				1024 *
+				1024,
 		},
 	}
 }
@@ -191,7 +362,9 @@ func mockHistoricalWorkloads() []domain.WorkloadHistory {
 
 			MemoryUsageBytes: generateMemoryHistory(
 				now,
-				640*1024*1024,
+				640*
+					1024*
+					1024,
 				samples,
 			),
 		},
@@ -207,7 +380,9 @@ func mockHistoricalWorkloads() []domain.WorkloadHistory {
 
 			MemoryUsageBytes: generateMemoryHistory(
 				now,
-				805*1024*1024,
+				805*
+					1024*
+					1024,
 				samples,
 			),
 		},
@@ -248,10 +423,12 @@ func generateCPUHistory(
 					Timestamp: now.Add(
 						-time.Duration(
 							samples-i,
-						) * defaultHistoryStep,
+						) *
+							defaultHistoryStep,
 					),
 
-					Value: base * multiplier,
+					Value: base *
+						multiplier,
 				},
 			)
 	}
@@ -293,10 +470,12 @@ func generateMemoryHistory(
 					Timestamp: now.Add(
 						-time.Duration(
 							samples-i,
-						) * defaultHistoryStep,
+						) *
+							defaultHistoryStep,
 					),
 
-					Value: base * multiplier,
+					Value: base *
+						multiplier,
 				},
 			)
 	}

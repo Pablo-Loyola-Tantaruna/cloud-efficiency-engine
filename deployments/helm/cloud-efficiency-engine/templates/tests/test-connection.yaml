@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "cloud-efficiency-engine.fullname" . }}-test-connection"
+  namespace: {{ include "cloud-efficiency-engine.namespace" . }}
+  labels:
+    {{- include "cloud-efficiency-engine.labels" . | nindent 4 }}
+
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+
+spec:
+  restartPolicy: Never
+
+  containers:
+    - name: wget
+
+      image: busybox:1.36
+
+      command:
+        - wget
+
+      args:
+        - "-q"
+        - "-O"
+        - "-"
+        - "http://{{ include "cloud-efficiency-engine.serviceName" . }}:{{ .Values.service.port }}/health"

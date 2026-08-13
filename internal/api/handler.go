@@ -21,15 +21,18 @@ const (
 )
 
 type Handler struct {
-	engine AnalysisService
+	engine          AnalysisService
+	analysisMetrics *AnalysisMetrics
 }
 
 func NewHandler(
 	engine AnalysisService,
+	analysisMetrics *AnalysisMetrics,
 ) *Handler {
 
 	return &Handler{
-		engine: engine,
+		engine:          engine,
+		analysisMetrics: analysisMetrics,
 	}
 }
 
@@ -95,11 +98,13 @@ func (h *Handler) Analyze(
 		)
 
 	if request.LookbackHours == 0 {
+
 		request.LookbackHours =
 			defaultLookbackHours
 	}
 
 	if request.StepSeconds == 0 {
+
 		request.StepSeconds =
 			defaultStepSeconds
 	}
@@ -151,8 +156,11 @@ func (h *Handler) Analyze(
 			r.Context(),
 			analysis.AnalysisOptions{
 				Namespace: request.Namespace,
-				Start:     start,
-				End:       end,
+
+				Start: start,
+
+				End: end,
+
 				Step: time.Duration(
 					request.StepSeconds,
 				) * time.Second,
@@ -160,6 +168,11 @@ func (h *Handler) Analyze(
 		)
 
 	if err != nil {
+
+		if h.analysisMetrics != nil {
+
+			h.analysisMetrics.RecordAnalysisError()
+		}
 
 		writeError(
 			w,
@@ -172,9 +185,25 @@ func (h *Handler) Analyze(
 		return
 	}
 
+	if h.analysisMetrics != nil {
+
+		h.analysisMetrics.RecordAnalysis(
+			report.Summary.TotalWorkloads,
+			report.Summary.OptimizableWorkloads,
+			report.Summary.CurrentMonthlyCostUSD,
+			report.Summary.OptimizedMonthlyCostUSD,
+			report.Summary.PotentialSavingsUSD,
+		)
+	}
+
 	w.Header().Set(
 		"Content-Type",
 		"application/json",
+	)
+
+	w.Header().Set(
+		"X-Request-ID",
+		requestID,
 	)
 
 	w.WriteHeader(

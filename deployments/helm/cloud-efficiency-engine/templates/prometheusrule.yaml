@@ -1,19 +1,23 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheusRule.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: cloud-efficiency-engine-rules
+  name: {{ include "cloud-efficiency-engine.fullname" . }}
   namespace: monitoring
   labels:
     release: monitoring
     app: cloud-efficiency-engine
+
 spec:
   groups:
 
-    # ============================================================
-    # Cloud Efficiency Engine - application/business rules
-    # ============================================================
-    - name: cloud-efficiency-engine.recording
-      interval: 30s
+    # ==========================================================
+    # Cloud Efficiency Engine application/business rules
+    # ==========================================================
+
+    - name: {{ include "cloud-efficiency-engine.fullname" . }}.recording
+      interval: {{ .Values.monitoring.prometheusRule.evaluationInterval }}
+
       rules:
 
         - record: cee:analysis_success_rate
@@ -113,19 +117,15 @@ spec:
               )
             ) * 100
 
-    # ============================================================
-    # Kubernetes workload ownership
+    # ==========================================================
+    # Kubernetes workload ownership and resource metrics
     #
-    # Converts:
     # Pod -> ReplicaSet -> Deployment
-    #
-    # into:
-    # namespace + pod + workload
-    #
-    # This allows workload-level aggregation.
-    # ============================================================
-    - name: cloud-efficiency-engine.kubernetes-workload
-      interval: 30s
+    # ==========================================================
+
+    - name: {{ include "cloud-efficiency-engine.fullname" . }}.kubernetes-workload
+      interval: {{ .Values.monitoring.prometheusRule.evaluationInterval }}
+
       rules:
 
         - record: cee_workload_pod_owner
@@ -175,10 +175,6 @@ spec:
               )
             )
 
-        # ========================================================
-        # CPU requests
-        # ========================================================
-
         - record: cee_workload_cpu_request_millicores
           expr: |
             1000 *
@@ -208,10 +204,6 @@ spec:
               )
               cee_workload_pod_owner
             )
-
-        # ========================================================
-        # CPU usage
-        # ========================================================
 
         - record: cee_workload_cpu_usage_millicores
           expr: |
@@ -245,10 +237,6 @@ spec:
               cee_workload_pod_owner
             )
 
-        # ========================================================
-        # Memory requests
-        # ========================================================
-
         - record: cee_workload_memory_request_bytes
           expr: |
             sum by (
@@ -277,10 +265,6 @@ spec:
               )
               cee_workload_pod_owner
             )
-
-        # ========================================================
-        # Memory usage
-        # ========================================================
 
         - record: cee_workload_memory_usage_bytes
           expr: |
@@ -311,10 +295,6 @@ spec:
               cee_workload_pod_owner
             )
 
-        # ========================================================
-        # Deployment replicas
-        # ========================================================
-
         - record: cee_workload_replicas
           expr: |
             label_replace(
@@ -324,3 +304,5 @@ spec:
               "deployment",
               "(.*)"
             )
+
+{{- end }}

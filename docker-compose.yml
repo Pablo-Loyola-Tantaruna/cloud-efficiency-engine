@@ -2,7 +2,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.5.0
-    container_name: cloud-efficiency-prometheus
+    container_name: cloud-efficiency-engine-prometheus
     ports:
       - "9090:9090"
     volumes:

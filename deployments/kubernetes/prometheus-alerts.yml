@@ -1,0 +1,108 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cloud-efficiency-engine-alerts
+  namespace: monitoring
+  labels:
+    release: monitoring
+    app: cloud-efficiency-engine
+spec:
+  groups:
+    - name: cloud-efficiency-engine.alerts
+      interval: 30s
+      rules:
+
+        - alert: CloudEfficiencyAnalysisStale
+          expr: |
+            cee:analysis_stale == 1
+          for: 10m
+          labels:
+            severity: warning
+            category: observability
+          annotations:
+            summary: "Cloud Efficiency analysis is stale"
+            description: "No successful scheduled analysis has completed for the namespace in more than one hour."
+
+        - alert: CloudEfficiencySchedulerFailures
+          expr: |
+            rate(
+              cee_scheduler_failure_total[10m]
+            ) > 0
+          for: 5m
+          labels:
+            severity: warning
+            category: application
+          annotations:
+            summary: "Cloud Efficiency scheduler is failing"
+            description: "Scheduled analyses are failing continuously."
+
+        - alert: CloudEfficiencyHighSavingsOpportunity
+          expr: |
+            cee_potential_savings_usd >= 1000
+          for: 10m
+          labels:
+            severity: warning
+            category: finops
+          annotations:
+            summary: "High cloud savings opportunity detected"
+            description: "The engine identified at least $1000 of estimated monthly savings."
+
+        - alert: CloudEfficiencyCriticalSavingsOpportunity
+          expr: |
+            cee_potential_savings_usd >= 5000
+          for: 10m
+          labels:
+            severity: critical
+            category: finops
+          annotations:
+            summary: "Critical cloud savings opportunity detected"
+            description: "The engine identified at least $5000 of estimated monthly savings."
+
+        - alert: CloudEfficiencyHighHTTPErrorRate
+          expr: |
+            cee:http_error_rate > 5
+          for: 5m
+          labels:
+            severity: warning
+            category: application
+          annotations:
+            summary: "Cloud Efficiency HTTP error rate is high"
+            description: "More than 5% of HTTP requests are returning 5xx responses."
+
+        - alert: CloudEfficiencyNoSuccessfulAnalysis
+          expr: |
+            (
+              cee_scheduler_success_total
+              == 0
+            )
+          for: 15m
+          labels:
+            severity: critical
+            category: observability
+          annotations:
+            summary: "Cloud Efficiency has no successful scheduled analysis"
+            description: "The scheduler has not completed a successful analysis yet."
+        - alert: CloudEfficiencyCriticalRecommendations
+          expr: |
+            sum(
+              cee_recommendation_severity_count{
+                severity="CRITICAL"
+              }
+            ) >= 10
+          for: 10m
+          labels:
+            severity: critical
+            category: finops
+          annotations:
+            summary: "Large number of critical optimization recommendations"
+            description: "The Cloud Efficiency Engine currently reports at least 10 critical optimization recommendations."
+        - alert: CloudEfficiencyLowOptimizationCoverage
+          expr: |
+            cee:optimization_coverage_percentage < 5
+          for: 30m
+          labels:
+            severity: info
+            category: finops
+          annotations:
+            summary: "Low optimization coverage"
+            description: "Less than 5% of analyzed workloads currently have optimization recommendations."

@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cloud-efficiency-engine
+  namespace: monitoring
+  labels:
+    release: monitoring
+    app: cloud-efficiency-engine
+spec:
+  namespaceSelector:
+    matchNames:
+      - cloud-efficiency-engine
+
+  selector:
+    matchLabels:
+      app: cloud-efficiency-engine
+
+  endpoints:
+
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      scheme: http
+
+    - port: http
+      path: /metrics/finops
+      interval: 15s
+      scrapeTimeout: 10s
+      scheme: http

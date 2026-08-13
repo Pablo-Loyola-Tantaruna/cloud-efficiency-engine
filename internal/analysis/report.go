@@ -1,9 +1,9 @@
 package analysis
 
 import (
-	"cloud-efficiency-engine/internal/cost"
 	"time"
 
+	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
 )
 
@@ -11,6 +11,8 @@ type AnalysisReport struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 
 	Summary AnalysisSummary `json:"summary"`
+
+	NamespaceBreakdown []NamespaceCostBreakdown `json:"namespaceBreakdown"`
 
 	Workloads []WorkloadAnalysis `json:"workloads"`
 }

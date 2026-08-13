@@ -49,7 +49,7 @@ paths:
               $ref: "#/components/schemas/AnalyzeRequest"
 
             example:
-              namespace: cloud-efficiency
+              namespace: cloud-efficiency-engine
               lookbackHours: 168
               stepSeconds: 300
 
@@ -182,7 +182,7 @@ components:
           description: |
             Kubernetes namespace to analyze.
 
-          example: cloud-efficiency
+          example: cloud-efficiency-engine
 
         lookbackHours:
           type: integer
