@@ -70,7 +70,7 @@ func TestScheduler_ShouldSendReportToMetricsSink(
 		&schedulerIntegrationAnalyzer{}
 
 	metrics :=
-		&schedulerMetricsMock{}
+		newSchedulerMetricsMock()
 
 	scheduler :=
 		NewScheduler(
@@ -109,48 +109,27 @@ func TestScheduler_ShouldSendReportToMetricsSink(
 		close(done)
 	}()
 
-	deadline :=
-		time.After(
-			1 * time.Second,
-		)
+	waitForSignal(
+		t,
+		metrics.updated,
+		"expected scheduled metrics update",
+	)
 
-	for {
-
-		if len(metrics.reports) == 1 {
-			break
-		}
-
-		select {
-
-		case <-deadline:
-
-			t.Fatal(
-				"expected scheduled metrics update",
-			)
-
-		case <-time.After(
-			5 * time.Millisecond,
-		):
-		}
-	}
-
-	cancel()
-
-	select {
-
-	case <-done:
-		// expected
-
-	case <-time.After(
-		1 * time.Second,
-	):
-
-		t.Fatal(
-			"scheduler did not stop",
-		)
-	}
+	stopScheduler(
+		t,
+		cancel,
+		done,
+	)
 
 	// Assert
+
+	if len(metrics.reports) != 1 {
+
+		t.Fatalf(
+			"expected 1 report, got %d",
+			len(metrics.reports),
+		)
+	}
 
 	report :=
 		metrics.reports[0]

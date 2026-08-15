@@ -15,6 +15,20 @@ type schedulerAnalyzerMock struct {
 	calls int
 
 	lastOptions AnalysisOptions
+
+	called chan struct{}
+}
+
+func newSchedulerAnalyzerMock(
+	report *AnalysisReport,
+	err error,
+) *schedulerAnalyzerMock {
+
+	return &schedulerAnalyzerMock{
+		report: report,
+		err:    err,
+		called: make(chan struct{}),
+	}
 }
 
 func (m *schedulerAnalyzerMock) Analyze(
@@ -23,9 +37,13 @@ func (m *schedulerAnalyzerMock) Analyze(
 ) (*AnalysisReport, error) {
 
 	m.calls++
+	m.lastOptions = options
 
-	m.lastOptions =
-		options
+	select {
+	case <-m.called:
+	default:
+		close(m.called)
+	}
 
 	return m.report, m.err
 }
@@ -38,6 +56,15 @@ type schedulerMetricsMock struct {
 	failureCalls int
 
 	lastNamespace string
+
+	updated chan struct{}
+}
+
+func newSchedulerMetricsMock() *schedulerMetricsMock {
+
+	return &schedulerMetricsMock{
+		updated: make(chan struct{}),
+	}
 }
 
 func (m *schedulerMetricsMock) Update(
@@ -49,6 +76,12 @@ func (m *schedulerMetricsMock) Update(
 			m.reports,
 			report,
 		)
+
+	select {
+	case <-m.updated:
+	default:
+		close(m.updated)
+	}
 }
 
 func (
@@ -77,6 +110,52 @@ func (
 		namespace
 }
 
+func waitForSignal(
+	t *testing.T,
+	signal <-chan struct{},
+	message string,
+) {
+
+	t.Helper()
+
+	select {
+
+	case <-signal:
+		return
+
+	case <-time.After(
+		1 * time.Second,
+	):
+
+		t.Fatal(message)
+	}
+}
+
+func stopScheduler(
+	t *testing.T,
+	cancel context.CancelFunc,
+	done <-chan struct{},
+) {
+
+	t.Helper()
+
+	cancel()
+
+	select {
+
+	case <-done:
+		return
+
+	case <-time.After(
+		1 * time.Second,
+	):
+
+		t.Fatal(
+			"scheduler did not stop after cancellation",
+		)
+	}
+}
+
 func TestSchedulerRun_ShouldExecuteAnalysisImmediately(
 	t *testing.T,
 ) {
@@ -89,12 +168,13 @@ func TestSchedulerRun_ShouldExecuteAnalysisImmediately(
 		}
 
 	analyzer :=
-		&schedulerAnalyzerMock{
-			report: report,
-		}
+		newSchedulerAnalyzerMock(
+			report,
+			nil,
+		)
 
 	metrics :=
-		&schedulerMetricsMock{}
+		newSchedulerMetricsMock()
 
 	scheduler :=
 		NewScheduler(
@@ -131,45 +211,17 @@ func TestSchedulerRun_ShouldExecuteAnalysisImmediately(
 		close(done)
 	}()
 
-	deadline :=
-		time.After(
-			1 * time.Second,
-		)
+	waitForSignal(
+		t,
+		analyzer.called,
+		"expected initial analysis execution",
+	)
 
-	for {
-
-		if analyzer.calls >= 1 {
-			break
-		}
-
-		select {
-
-		case <-deadline:
-
-			t.Fatal(
-				"expected initial analysis execution",
-			)
-
-		case <-time.After(
-			5 * time.Millisecond,
-		):
-		}
-	}
-
-	cancel()
-
-	select {
-
-	case <-done:
-
-	case <-time.After(
-		1 * time.Second,
-	):
-
-		t.Fatal(
-			"scheduler did not stop after cancellation",
-		)
-	}
+	stopScheduler(
+		t,
+		cancel,
+		done,
+	)
 
 	if analyzer.calls != 1 {
 
@@ -208,9 +260,41 @@ func TestSchedulerRun_ShouldExecuteAnalysisImmediately(
 
 		t.Fatalf(
 			"expected namespace cloud-efficiency-engine, got %s",
-			metrics.lastNamespace)
+			metrics.lastNamespace,
+		)
 	}
 
+	if analyzer.lastOptions.Namespace !=
+		"cloud-efficiency-engine" {
+
+		t.Fatalf(
+			"expected analyzer namespace cloud-efficiency-engine, got %s",
+			analyzer.lastOptions.Namespace,
+		)
+	}
+
+	if analyzer.lastOptions.Namespace !=
+		"cloud-efficiency-engine" {
+
+		t.Fatalf(
+			"expected analyzer namespace cloud-efficiency-engine, got %s",
+			analyzer.lastOptions.Namespace,
+		)
+	}
+
+	if analyzer.lastOptions.Start.IsZero() {
+
+		t.Fatal(
+			"expected analysis start time",
+		)
+	}
+
+	if analyzer.lastOptions.End.IsZero() {
+
+		t.Fatal(
+			"expected analysis end time",
+		)
+	}
 }
 
 func TestSchedulerNormalizedConfig_ShouldApplyDefaults(
@@ -219,8 +303,11 @@ func TestSchedulerNormalizedConfig_ShouldApplyDefaults(
 
 	scheduler :=
 		NewScheduler(
-			&schedulerAnalyzerMock{},
-			&schedulerMetricsMock{},
+			newSchedulerAnalyzerMock(
+				nil,
+				nil,
+			),
+			newSchedulerMetricsMock(),
 			nil,
 			SchedulerConfig{},
 		)
@@ -261,14 +348,15 @@ func TestSchedulerRun_ShouldRecordFailure(
 ) {
 
 	analyzer :=
-		&schedulerAnalyzerMock{
-			err: errors.New(
+		newSchedulerAnalyzerMock(
+			nil,
+			errors.New(
 				"analysis failed",
 			),
-		}
+		)
 
 	metrics :=
-		&schedulerMetricsMock{}
+		newSchedulerMetricsMock()
 
 	scheduler :=
 		NewScheduler(
@@ -301,45 +389,17 @@ func TestSchedulerRun_ShouldRecordFailure(
 		close(done)
 	}()
 
-	deadline :=
-		time.After(
-			1 * time.Second,
-		)
+	waitForSignal(
+		t,
+		analyzer.called,
+		"expected analysis execution",
+	)
 
-	for {
-
-		if analyzer.calls >= 1 {
-			break
-		}
-
-		select {
-
-		case <-deadline:
-
-			t.Fatal(
-				"expected analysis execution",
-			)
-
-		case <-time.After(
-			5 * time.Millisecond,
-		):
-		}
-	}
-
-	cancel()
-
-	select {
-
-	case <-done:
-
-	case <-time.After(
-		1 * time.Second,
-	):
-
-		t.Fatal(
-			"scheduler did not stop",
-		)
-	}
+	stopScheduler(
+		t,
+		cancel,
+		done,
+	)
 
 	if len(metrics.reports) != 0 {
 
@@ -371,12 +431,13 @@ func TestSchedulerRun_ShouldRecordFailureWhenReportIsNil(
 ) {
 
 	analyzer :=
-		&schedulerAnalyzerMock{
-			report: nil,
-		}
+		newSchedulerAnalyzerMock(
+			nil,
+			nil,
+		)
 
 	metrics :=
-		&schedulerMetricsMock{}
+		newSchedulerMetricsMock()
 
 	scheduler :=
 		NewScheduler(
@@ -409,45 +470,17 @@ func TestSchedulerRun_ShouldRecordFailureWhenReportIsNil(
 		close(done)
 	}()
 
-	deadline :=
-		time.After(
-			1 * time.Second,
-		)
+	waitForSignal(
+		t,
+		analyzer.called,
+		"expected analysis execution",
+	)
 
-	for {
-
-		if analyzer.calls >= 1 {
-			break
-		}
-
-		select {
-
-		case <-deadline:
-
-			t.Fatal(
-				"expected analysis execution",
-			)
-
-		case <-time.After(
-			5 * time.Millisecond,
-		):
-		}
-	}
-
-	cancel()
-
-	select {
-
-	case <-done:
-
-	case <-time.After(
-		1 * time.Second,
-	):
-
-		t.Fatal(
-			"scheduler did not stop",
-		)
-	}
+	stopScheduler(
+		t,
+		cancel,
+		done,
+	)
 
 	if metrics.successCalls != 0 {
 
