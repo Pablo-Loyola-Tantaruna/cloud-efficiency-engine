@@ -1,6 +1,10 @@
 package pricing
 
-import "context"
+import (
+	"context"
+
+	"cloud-efficiency-engine/internal/domain"
+)
 
 type ResourcePricing struct {
 	CPUPerCoreHour  float64
@@ -10,5 +14,12 @@ type ResourcePricing struct {
 type Provider interface {
 	GetPricing(
 		ctx context.Context,
+	) (ResourcePricing, error)
+}
+
+type ContextAwareProvider interface {
+	GetPricingWithContext(
+		ctx context.Context,
+		analysisContext domain.AnalysisContext,
 	) (ResourcePricing, error)
 }

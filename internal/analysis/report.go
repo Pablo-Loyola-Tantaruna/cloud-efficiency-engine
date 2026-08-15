@@ -3,6 +3,7 @@ package analysis
 import (
 	"time"
 
+	"cloud-efficiency-engine/internal/billing"
 	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
 )
@@ -10,11 +11,17 @@ import (
 type AnalysisReport struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 
+	Context domain.AnalysisContext `json:"context"`
+
 	Summary AnalysisSummary `json:"summary"`
 
 	NamespaceBreakdown []NamespaceCostBreakdown `json:"namespaceBreakdown"`
 
 	Workloads []WorkloadAnalysis `json:"workloads"`
+
+	Billing *billing.CostReport `json:"billing,omitempty"`
+
+	Attribution *cost.AttributionReport `json:"attribution,omitempty"`
 }
 
 type AnalysisSummary struct {
@@ -29,6 +36,10 @@ type AnalysisSummary struct {
 	PotentialSavingsUSD float64 `json:"potentialSavingsUsd"`
 
 	SavingsPercentage float64 `json:"savingsPercentage"`
+
+	ActualCloudCostUSD float64 `json:"actualCloudCostUsd"`
+
+	CostVarianceUSD float64 `json:"costVarianceUsd"`
 }
 
 type WorkloadAnalysis struct {

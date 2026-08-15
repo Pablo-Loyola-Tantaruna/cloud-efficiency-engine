@@ -16,3 +16,14 @@ type HistoricalProvider interface {
 		step time.Duration,
 	) ([]domain.WorkloadHistory, error)
 }
+
+type ContextAwareHistoricalProvider interface {
+	GetWorkloadHistoryWithContext(
+		ctx context.Context,
+		analysisContext domain.AnalysisContext,
+		namespace string,
+		start time.Time,
+		end time.Time,
+		step time.Duration,
+	) ([]domain.WorkloadHistory, error)
+}

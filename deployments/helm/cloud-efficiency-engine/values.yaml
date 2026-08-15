@@ -16,6 +16,12 @@ service:
   targetPort: 8080
 
 env:
+  cloudProvider: kubernetes
+  analysisEnvironment: production
+  cloudAccountId: ""
+  cloudRegion: ""
+  cloudClusterName: ""
+
   metricsProvider: prometheus
   prometheusUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc:9090
   analysisNamespace: cloud-efficiency-engine

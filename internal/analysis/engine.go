@@ -1,16 +1,19 @@
 package analysis
 
 import (
+	"cloud-efficiency-engine/internal/analysis/capacity"
 	"context"
 	"time"
 
 	"cloud-efficiency-engine/internal/analysis/optimizer"
 	"cloud-efficiency-engine/internal/analysis/resolver"
 	"cloud-efficiency-engine/internal/analysis/rules"
+	"cloud-efficiency-engine/internal/billing"
 	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
 	"cloud-efficiency-engine/internal/metrics"
 	"cloud-efficiency-engine/internal/pricing"
+	providerregistry "cloud-efficiency-engine/internal/providers"
 )
 
 type Engine struct {
@@ -20,6 +23,8 @@ type Engine struct {
 
 	pricingProvider pricing.Provider
 
+	providerRegistry *providerregistry.Registry
+
 	rules []rules.Rule
 
 	optimizer *optimizer.Engine
@@ -27,6 +32,8 @@ type Engine struct {
 	resolver *resolver.Resolver
 
 	costCalculator *cost.Calculator
+
+	costAttributor *cost.CostAttributor
 }
 
 func NewEngine(
@@ -61,6 +68,39 @@ func NewEngine(
 		resolver: recommendationResolver,
 
 		costCalculator: costCalculator,
+
+		costAttributor: cost.NewCostAttributor(),
+	}
+}
+
+func NewEngineWithRegistry(
+	providerRegistry *providerregistry.Registry,
+	rules []rules.Rule,
+	optimizationPolicy optimizer.OptimizationPolicy,
+	recommendationResolver *resolver.Resolver,
+	costCalculator *cost.Calculator,
+) *Engine {
+
+	if recommendationResolver == nil {
+
+		recommendationResolver =
+			resolver.NewResolver()
+	}
+
+	return &Engine{
+		providerRegistry: providerRegistry,
+
+		rules: rules,
+
+		optimizer: optimizer.NewEngine(
+			optimizationPolicy,
+		),
+
+		resolver: recommendationResolver,
+
+		costCalculator: costCalculator,
+
+		costAttributor: cost.NewCostAttributor(),
 	}
 }
 
@@ -69,10 +109,64 @@ func (e *Engine) Analyze(
 	options AnalysisOptions,
 ) (*AnalysisReport, error) {
 
+	analysisContext :=
+		domain.NormalizeAnalysisContext(
+			options.Context,
+		)
+
+	var (
+		metricsProvider    metrics.Provider
+		historicalProvider metrics.HistoricalProvider
+		pricingProvider    pricing.Provider
+		billingProvider    billing.Provider
+		capacityProvider   capacity.Provider
+	)
+
+	if e.providerRegistry != nil {
+
+		bundle, err :=
+			e.providerRegistry.Resolve(
+				ctx,
+				analysisContext,
+			)
+
+		if err != nil {
+			return nil, err
+		}
+
+		metricsProvider =
+			bundle.MetricsProvider
+
+		historicalProvider =
+			bundle.HistoricalProvider
+
+		pricingProvider =
+			bundle.PricingProvider
+
+		billingProvider =
+			bundle.BillingProvider
+
+		capacityProvider =
+			bundle.CapacityProvider
+
+	} else {
+
+		metricsProvider =
+			e.provider
+
+		historicalProvider =
+			e.historicalProvider
+
+		pricingProvider =
+			e.pricingProvider
+	}
+
 	workloads, err :=
-		e.provider.GetWorkloads(
+		e.getWorkloads(
 			ctx,
-			options.Namespace,
+			analysisContext,
+			options,
+			metricsProvider,
 		)
 
 	if err != nil {
@@ -85,17 +179,15 @@ func (e *Engine) Analyze(
 			0,
 		)
 
-	if e.historicalProvider != nil {
+	if historicalProvider != nil {
 
 		histories, err =
-			e.historicalProvider.
-				GetWorkloadHistory(
-					ctx,
-					options.Namespace,
-					options.Start,
-					options.End,
-					options.Step,
-				)
+			e.getWorkloadHistory(
+				ctx,
+				analysisContext,
+				options,
+				historicalProvider,
+			)
 
 		if err != nil {
 			return nil, err
@@ -104,11 +196,13 @@ func (e *Engine) Analyze(
 
 	var prices pricing.ResourcePricing
 
-	if e.pricingProvider != nil {
+	if pricingProvider != nil {
 
 		prices, err =
-			e.pricingProvider.GetPricing(
+			e.getPricing(
 				ctx,
+				analysisContext,
+				pricingProvider,
 			)
 
 		if err != nil {
@@ -116,9 +210,33 @@ func (e *Engine) Analyze(
 		}
 	}
 
+	var actualCost *billing.CostReport
+
+	if billingProvider != nil {
+
+		costReport, billingErr :=
+			e.getBillingCost(
+				ctx,
+				analysisContext,
+				options,
+				billingProvider,
+			)
+
+		if billingErr != nil {
+			return nil, billingErr
+		}
+
+		actualCost =
+			&costReport
+	}
+
 	report :=
 		&AnalysisReport{
 			GeneratedAt: time.Now().UTC(),
+
+			Context: analysisContext,
+
+			Billing: actualCost,
 
 			Workloads: make(
 				[]WorkloadAnalysis,
@@ -152,12 +270,160 @@ func (e *Engine) Analyze(
 		report,
 	)
 
+	e.calculateBillingSummary(
+		report,
+	)
+
+	if capacityProvider != nil &&
+		actualCost != nil &&
+		e.costAttributor != nil {
+
+		attribution, attributionErr :=
+			e.calculateAttribution(
+				ctx,
+				analysisContext,
+				workloads,
+				actualCost,
+				capacityProvider,
+			)
+
+		if attributionErr != nil {
+			return nil, attributionErr
+		}
+
+		report.Attribution =
+			&attribution
+	}
+
 	report.NamespaceBreakdown =
 		buildNamespaceCostBreakdown(
 			report.Workloads,
 		)
 
 	return report, nil
+}
+
+func (e *Engine) calculateAttribution(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+	workloads []domain.WorkloadMetrics,
+	actualCost *billing.CostReport,
+	provider capacity.Provider,
+) (cost.AttributionReport, error) {
+
+	cluster, err :=
+		provider.GetCapacity(
+			ctx,
+			analysisContext,
+		)
+
+	if err != nil {
+		return cost.AttributionReport{},
+			err
+	}
+
+	monthlyCost, err :=
+		cost.MonthlyizeCost(
+			actualCost.TotalUSD,
+			actualCost.Start,
+			actualCost.End,
+		)
+
+	if err != nil {
+
+		return cost.AttributionReport{},
+			err
+	}
+
+	cluster.MonthlyCostUSD =
+		monthlyCost
+
+	return e.costAttributor.Attribute(
+		workloads,
+		cluster,
+	)
+}
+
+func (e *Engine) getWorkloads(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+	options AnalysisOptions,
+	provider metrics.Provider,
+) ([]domain.WorkloadMetrics, error) {
+
+	contextAwareProvider, ok :=
+		provider.(metrics.ContextAwareProvider)
+
+	if ok {
+
+		return contextAwareProvider.
+			GetWorkloadsWithContext(
+				ctx,
+				analysisContext,
+				options.Namespace,
+			)
+	}
+
+	return provider.GetWorkloads(
+		ctx,
+		options.Namespace,
+	)
+}
+
+func (e *Engine) getWorkloadHistory(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+	options AnalysisOptions,
+	provider metrics.HistoricalProvider,
+) ([]domain.WorkloadHistory, error) {
+
+	contextAwareProvider, ok :=
+		provider.(metrics.ContextAwareHistoricalProvider)
+
+	if ok {
+
+		return contextAwareProvider.
+			GetWorkloadHistoryWithContext(
+				ctx,
+				analysisContext,
+				options.Namespace,
+				options.Start,
+				options.End,
+				options.Step,
+			)
+	}
+
+	return provider.
+		GetWorkloadHistory(
+			ctx,
+			options.Namespace,
+			options.Start,
+			options.End,
+			options.Step,
+		)
+}
+
+func (e *Engine) getPricing(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+	provider pricing.Provider,
+) (pricing.ResourcePricing, error) {
+
+	contextAwareProvider, ok :=
+		provider.(pricing.ContextAwareProvider)
+
+	if ok {
+
+		return contextAwareProvider.
+			GetPricingWithContext(
+				ctx,
+				analysisContext,
+			)
+	}
+
+	return provider.GetPricing(
+		ctx,
+	)
 }
 
 func (e *Engine) analyzeWorkload(
@@ -359,4 +625,55 @@ func (e *Engine) calculateSummary(
 					CurrentMonthlyCostUSD *
 				100
 	}
+}
+
+func (e *Engine) getBillingCost(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+	options AnalysisOptions,
+	provider billing.Provider,
+) (billing.CostReport, error) {
+
+	query :=
+		billing.CostQuery{
+			Start: options.Start,
+
+			End: options.End,
+		}
+
+	contextAwareProvider, ok :=
+		provider.(billing.ContextAwareProvider)
+
+	if ok {
+
+		return contextAwareProvider.
+			GetCostWithContext(
+				ctx,
+				analysisContext,
+				query,
+			)
+	}
+
+	return provider.GetCost(
+		ctx,
+		query,
+	)
+}
+
+func (e *Engine) calculateBillingSummary(
+	report *AnalysisReport,
+) {
+
+	if report == nil ||
+		report.Billing == nil {
+
+		return
+	}
+
+	report.Summary.ActualCloudCostUSD =
+		report.Billing.TotalUSD
+
+	report.Summary.CostVarianceUSD =
+		report.Billing.TotalUSD -
+			report.Summary.CurrentMonthlyCostUSD
 }

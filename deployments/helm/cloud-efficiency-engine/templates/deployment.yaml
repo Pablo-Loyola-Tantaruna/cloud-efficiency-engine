@@ -64,6 +64,21 @@ spec:
               protocol: TCP
 
           env:
+            - name: CLOUD_PROVIDER
+              value: {{ .Values.env.cloudProvider | quote }}
+
+            - name: ANALYSIS_ENVIRONMENT
+              value: {{ .Values.env.analysisEnvironment | quote }}
+
+            - name: CLOUD_ACCOUNT_ID
+              value: {{ .Values.env.cloudAccountId | quote }}
+
+            - name: CLOUD_REGION
+              value: {{ .Values.env.cloudRegion | quote }}
+
+            - name: CLOUD_CLUSTER_NAME
+              value: {{ .Values.env.cloudClusterName | quote }}
+
             - name: METRICS_PROVIDER
               value: {{ .Values.env.metricsProvider | quote }}
 

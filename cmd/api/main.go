@@ -15,18 +15,25 @@ import (
 	"cloud-efficiency-engine/internal/api"
 	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
-	"cloud-efficiency-engine/internal/metrics"
-	"cloud-efficiency-engine/internal/metrics/providers"
 	"cloud-efficiency-engine/internal/observability"
-	"cloud-efficiency-engine/internal/pricing"
+	providerregistry "cloud-efficiency-engine/internal/providers"
+
+	metricproviders "cloud-efficiency-engine/internal/metrics/providers"
+	awsprovider "cloud-efficiency-engine/internal/providers/aws"
+
+	kubernetesprovider "cloud-efficiency-engine/internal/providers/kubernetes"
 )
 
 const (
 	defaultLookbackHours = 7 * 24
-	defaultHistoryStep   = 5 * time.Minute
+
+	defaultHistoryStep = 5 * time.Minute
+
 	defaultHoursPerMonth = 730.0
 
 	defaultAnalysisInterval = 15 * time.Minute
+
+	defaultPrometheusURL = "http://localhost:9090"
 )
 
 func main() {
@@ -37,16 +44,9 @@ func main() {
 	optimizationRules :=
 		[]rules.Rule{
 			rules.NewCPUOverprovisioningRule(),
+
 			rules.NewMemoryOverprovisioningRule(),
 		}
-
-	pricingProvider :=
-		pricing.NewStaticProvider(
-			pricing.ResourcePricing{
-				CPUPerCoreHour:  0.04,
-				MemoryPerGBHour: 0.005,
-			},
-		)
 
 	calculator :=
 		cost.NewCalculator(
@@ -56,15 +56,69 @@ func main() {
 	recommendationResolver :=
 		resolver.NewResolver()
 
-	provider,
-		historicalProvider :=
-		createMetricsProviders()
+	analysisContext :=
+		loadAnalysisContext()
+
+	registry :=
+		providerregistry.NewRegistry()
+
+	prometheusProvider :=
+		metricproviders.NewPrometheusProvider(
+			getPrometheusURL(),
+			nil,
+		)
+
+	kubernetesCapacitySource :=
+		kubernetesprovider.NewCapacitySource(
+			prometheusProvider,
+		)
+
+	kubernetesCapacityProvider :=
+		kubernetesprovider.NewCapacityProvider(
+			kubernetesCapacitySource,
+		)
+
+	if err :=
+		kubernetesprovider.Register(
+			registry,
+			getPrometheusURL(),
+			0.04,
+			0.005,
+			kubernetesCapacityProvider,
+		); err != nil {
+
+		logger.Error(
+			"kubernetes_provider_registration_failed",
+			"error",
+			err,
+		)
+
+		return
+	}
+
+	if analysisContext.Provider ==
+		domain.CloudProviderAWS {
+
+		if err :=
+			registerAWSProvider(
+				registry,
+				analysisContext,
+				getPrometheusURL(),
+			); err != nil {
+
+			logger.Error(
+				"aws_provider_registration_failed",
+				"error",
+				err,
+			)
+
+			return
+		}
+	}
 
 	engine :=
-		analysis.NewEngine(
-			provider,
-			historicalProvider,
-			pricingProvider,
+		analysis.NewEngineWithRegistry(
+			registry,
 			optimizationRules,
 			optimizer.DefaultOptimizationPolicy(),
 			recommendationResolver,
@@ -119,17 +173,6 @@ func main() {
 
 	defer stop()
 
-	namespace :=
-		os.Getenv(
-			"ANALYSIS_NAMESPACE",
-		)
-
-	if namespace == "" {
-
-		namespace =
-			"cloud-efficiency-engine"
-	}
-
 	analysisInterval :=
 		parseDurationEnv(
 			"ANALYSIS_INTERVAL",
@@ -142,7 +185,9 @@ func main() {
 			observabilityMetrics,
 			logger,
 			analysis.SchedulerConfig{
-				Namespace: namespace,
+				Namespace: analysisContextNamespace(),
+
+				Context: analysisContext,
 
 				Interval: analysisInterval,
 
@@ -168,6 +213,10 @@ func main() {
 			"http_server_started",
 			"addr",
 			server.Addr,
+			"provider",
+			analysisContext.Provider,
+			"environment",
+			analysisContext.Environment,
 		)
 
 		serverError <- server.ListenAndServe()
@@ -225,6 +274,78 @@ func main() {
 	)
 }
 
+func loadAnalysisContext() domain.AnalysisContext {
+
+	provider :=
+		domain.CloudProvider(
+			getEnv(
+				"CLOUD_PROVIDER",
+				string(
+					domain.CloudProviderKubernetes,
+				),
+			),
+		)
+
+	environment :=
+		getEnv(
+			"ANALYSIS_ENVIRONMENT",
+			"development",
+		)
+
+	return domain.NormalizeAnalysisContext(
+		domain.AnalysisContext{
+			Provider: provider,
+
+			Environment: environment,
+
+			AccountID: os.Getenv(
+				"CLOUD_ACCOUNT_ID",
+			),
+
+			Region: os.Getenv(
+				"CLOUD_REGION",
+			),
+
+			ClusterName: os.Getenv(
+				"CLOUD_CLUSTER_NAME",
+			),
+		},
+	)
+}
+
+func analysisContextNamespace() string {
+
+	return getEnv(
+		"ANALYSIS_NAMESPACE",
+		"cloud-efficiency-engine",
+	)
+}
+
+func getPrometheusURL() string {
+
+	return getEnv(
+		"PROMETHEUS_URL",
+		defaultPrometheusURL,
+	)
+}
+
+func getEnv(
+	name string,
+	fallback string,
+) string {
+
+	value :=
+		os.Getenv(
+			name,
+		)
+
+	if value == "" {
+		return fallback
+	}
+
+	return value
+}
+
 func parseDurationEnv(
 	name string,
 	fallback time.Duration,
@@ -238,247 +359,89 @@ func parseDurationEnv(
 	}
 
 	parsed, err :=
-		time.ParseDuration(value)
+		time.ParseDuration(
+			value,
+		)
 
 	if err != nil {
-
 		return fallback
 	}
 
 	if parsed <= 0 {
-
 		return fallback
 	}
 
 	return parsed
 }
 
-func createMetricsProviders() (
-	metrics.Provider,
-	metrics.HistoricalProvider,
-) {
+func registerAWSProvider(
+	registry *providerregistry.Registry,
+	analysisContext domain.AnalysisContext,
+	prometheusURL string,
+) error {
 
-	providerType :=
-		os.Getenv(
-			"METRICS_PROVIDER",
+	ctx, cancel :=
+		context.WithTimeout(
+			context.Background(),
+			15*time.Second,
 		)
 
-	if providerType == "prometheus" {
+	defer cancel()
 
-		prometheusURL :=
-			os.Getenv(
-				"PROMETHEUS_URL",
-			)
-
-		if prometheusURL == "" {
-
-			prometheusURL =
-				"http://localhost:9090"
-		}
-
-		provider :=
-			providers.NewPrometheusProvider(
-				prometheusURL,
-				nil,
-			)
-
-		return provider, provider
-	}
-
-	return providers.NewMockProvider(
-			mockWorkloads(),
-		), providers.NewMockHistoricalProvider(
-			mockHistoricalWorkloads(),
-		)
-}
-
-func mockWorkloads() []domain.WorkloadMetrics {
-
-	return []domain.WorkloadMetrics{
-		{
-			Namespace: "payments",
-			Name:      "payments-api",
-
-			Type: domain.WorkloadDeployment,
-
-			Replicas: 3,
-
-			CPURequestMillicores: 1000,
-			CPUUsageMillicores:   180,
-
-			MemoryRequestBytes: 2 *
-				1024 *
-				1024 *
-				1024,
-
-			MemoryUsageBytes: 640 *
-				1024 *
-				1024,
-		},
-		{
-			Namespace: "orders",
-			Name:      "orders-api",
-
-			Type: domain.WorkloadDeployment,
-
-			Replicas: 2,
-
-			CPURequestMillicores: 500,
-			CPUUsageMillicores:   350,
-
-			MemoryRequestBytes: 1024 *
-				1024 *
-				1024,
-
-			MemoryUsageBytes: 805 *
-				1024 *
-				1024,
-		},
-	}
-}
-
-func mockHistoricalWorkloads() []domain.WorkloadHistory {
-
-	now :=
-		time.Now().UTC()
-
-	samples :=
-		int(
-			(defaultLookbackHours *
-				time.Hour) /
-				defaultHistoryStep,
+	clients, err :=
+		awsprovider.LoadSDKClients(
+			ctx,
+			analysisContext.Region,
 		)
 
-	return []domain.WorkloadHistory{
-		{
-			Namespace: "payments",
-			Name:      "payments-api",
-
-			CPUUsageMillicores: generateCPUHistory(
-				now,
-				180,
-				samples,
-			),
-
-			MemoryUsageBytes: generateMemoryHistory(
-				now,
-				640*
-					1024*
-					1024,
-				samples,
-			),
-		},
-		{
-			Namespace: "orders",
-			Name:      "orders-api",
-
-			CPUUsageMillicores: generateCPUHistory(
-				now,
-				350,
-				samples,
-			),
-
-			MemoryUsageBytes: generateMemoryHistory(
-				now,
-				805*
-					1024*
-					1024,
-				samples,
-			),
-		},
+	if err != nil {
+		return err
 	}
-}
 
-func generateCPUHistory(
-	now time.Time,
-	base float64,
-	samples int,
-) []domain.MetricSample {
-
-	result :=
-		make(
-			[]domain.MetricSample,
-			0,
-			samples,
+	prometheusProvider :=
+		metricproviders.NewPrometheusProvider(
+			prometheusURL,
+			nil,
 		)
 
-	values :=
-		[]float64{
-			0.80,
-			0.90,
-			1.00,
-			1.10,
-			1.20,
-		}
-
-	for i := 0; i < samples; i++ {
-
-		multiplier :=
-			values[i%len(values)]
-
-		result =
-			append(
-				result,
-				domain.MetricSample{
-					Timestamp: now.Add(
-						-time.Duration(
-							samples-i,
-						) *
-							defaultHistoryStep,
-					),
-
-					Value: base *
-						multiplier,
-				},
-			)
-	}
-
-	return result
-}
-
-func generateMemoryHistory(
-	now time.Time,
-	base float64,
-	samples int,
-) []domain.MetricSample {
-
-	result :=
-		make(
-			[]domain.MetricSample,
-			0,
-			samples,
+	metricsSource :=
+		providerregistry.NewMetricsSourceAdapter(
+			prometheusProvider,
+			prometheusProvider,
 		)
 
-	values :=
-		[]float64{
-			0.80,
-			0.90,
-			1.00,
-			1.05,
-			1.10,
-		}
+	pricingClient :=
+		awsprovider.NewAWSPricingClient(
+			clients.EC2,
+			clients.Pricing,
+		)
 
-	for i := 0; i < samples; i++ {
+	if err :=
+		awsprovider.RegisterWithSources(
+			registry,
+			metricsSource,
+			pricingClient,
+		); err != nil {
 
-		multiplier :=
-			values[i%len(values)]
-
-		result =
-			append(
-				result,
-				domain.MetricSample{
-					Timestamp: now.Add(
-						-time.Duration(
-							samples-i,
-						) *
-							defaultHistoryStep,
-					),
-
-					Value: base *
-						multiplier,
-				},
-			)
+		return err
 	}
 
-	return result
+	billingClient :=
+		awsprovider.NewCostExplorerBillingClient(
+			clients.CostExplorer,
+		)
+
+	if err :=
+		awsprovider.RegisterBillingProvider(
+			registry,
+			billingClient,
+		); err != nil {
+
+		return err
+	}
+
+	return awsprovider.RegisterCapacityProvider(
+		registry,
+		clients.EC2,
+	)
 }

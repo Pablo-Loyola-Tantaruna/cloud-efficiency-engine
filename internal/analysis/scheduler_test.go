@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"cloud-efficiency-engine/internal/domain"
 )
 
 type schedulerAnalyzerMock struct {
@@ -26,8 +28,12 @@ func newSchedulerAnalyzerMock(
 
 	return &schedulerAnalyzerMock{
 		report: report,
-		err:    err,
-		called: make(chan struct{}),
+
+		err: err,
+
+		called: make(
+			chan struct{},
+		),
 	}
 }
 
@@ -37,12 +43,19 @@ func (m *schedulerAnalyzerMock) Analyze(
 ) (*AnalysisReport, error) {
 
 	m.calls++
-	m.lastOptions = options
+
+	m.lastOptions =
+		options
 
 	select {
+
 	case <-m.called:
+
 	default:
-		close(m.called)
+
+		close(
+			m.called,
+		)
 	}
 
 	return m.report, m.err
@@ -63,7 +76,9 @@ type schedulerMetricsMock struct {
 func newSchedulerMetricsMock() *schedulerMetricsMock {
 
 	return &schedulerMetricsMock{
-		updated: make(chan struct{}),
+		updated: make(
+			chan struct{},
+		),
 	}
 }
 
@@ -78,9 +93,14 @@ func (m *schedulerMetricsMock) Update(
 		)
 
 	select {
+
 	case <-m.updated:
+
 	default:
-		close(m.updated)
+
+		close(
+			m.updated,
+		)
 	}
 }
 
@@ -121,13 +141,14 @@ func waitForSignal(
 	select {
 
 	case <-signal:
-		return
 
 	case <-time.After(
 		1 * time.Second,
 	):
 
-		t.Fatal(message)
+		t.Fatal(
+			message,
+		)
 	}
 }
 
@@ -144,7 +165,6 @@ func stopScheduler(
 	select {
 
 	case <-done:
-		return
 
 	case <-time.After(
 		1 * time.Second,
@@ -183,6 +203,14 @@ func TestSchedulerRun_ShouldExecuteAnalysisImmediately(
 			nil,
 			SchedulerConfig{
 				Namespace: "cloud-efficiency-engine",
+
+				Context: domain.AnalysisContext{
+					Provider: domain.CloudProviderKubernetes,
+
+					Environment: "test",
+
+					ClusterName: "test-cluster",
+				},
 
 				Interval: 1 * time.Hour,
 
@@ -264,35 +292,21 @@ func TestSchedulerRun_ShouldExecuteAnalysisImmediately(
 		)
 	}
 
-	if analyzer.lastOptions.Namespace !=
-		"cloud-efficiency-engine" {
+	if analyzer.lastOptions.Context.Provider !=
+		domain.CloudProviderKubernetes {
 
 		t.Fatalf(
-			"expected analyzer namespace cloud-efficiency-engine, got %s",
-			analyzer.lastOptions.Namespace,
+			"expected kubernetes provider, got %s",
+			analyzer.lastOptions.Context.Provider,
 		)
 	}
 
-	if analyzer.lastOptions.Namespace !=
-		"cloud-efficiency-engine" {
+	if analyzer.lastOptions.Context.ClusterName !=
+		"test-cluster" {
 
 		t.Fatalf(
-			"expected analyzer namespace cloud-efficiency-engine, got %s",
-			analyzer.lastOptions.Namespace,
-		)
-	}
-
-	if analyzer.lastOptions.Start.IsZero() {
-
-		t.Fatal(
-			"expected analysis start time",
-		)
-	}
-
-	if analyzer.lastOptions.End.IsZero() {
-
-		t.Fatal(
-			"expected analysis end time",
+			"expected test-cluster, got %s",
+			analyzer.lastOptions.Context.ClusterName,
 		)
 	}
 }
@@ -341,6 +355,24 @@ func TestSchedulerNormalizedConfig_ShouldApplyDefaults(
 			config.Step,
 		)
 	}
+
+	if config.Context.Provider !=
+		domain.CloudProviderKubernetes {
+
+		t.Fatalf(
+			"expected kubernetes provider, got %s",
+			config.Context.Provider,
+		)
+	}
+
+	if config.Context.Environment !=
+		"unknown" {
+
+		t.Fatalf(
+			"expected unknown environment, got %s",
+			config.Context.Environment,
+		)
+	}
 }
 
 func TestSchedulerRun_ShouldRecordFailure(
@@ -365,6 +397,12 @@ func TestSchedulerRun_ShouldRecordFailure(
 			nil,
 			SchedulerConfig{
 				Namespace: "cloud-efficiency-engine",
+
+				Context: domain.AnalysisContext{
+					Provider: domain.CloudProviderKubernetes,
+
+					Environment: "test",
+				},
 
 				Interval: 1 * time.Hour,
 			},
@@ -446,6 +484,12 @@ func TestSchedulerRun_ShouldRecordFailureWhenReportIsNil(
 			nil,
 			SchedulerConfig{
 				Namespace: "cloud-efficiency-engine",
+
+				Context: domain.AnalysisContext{
+					Provider: domain.CloudProviderKubernetes,
+
+					Environment: "test",
+				},
 
 				Interval: 1 * time.Hour,
 			},

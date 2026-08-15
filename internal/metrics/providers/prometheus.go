@@ -363,6 +363,7 @@ func parsePrometheusRangeValues(
 						int64(rawTimestamp),
 						0,
 					),
+
 					Value: parsedValue,
 				},
 			)
@@ -450,6 +451,18 @@ func (p *PrometheusProvider) GetWorkloads(
 	)
 }
 
+func (p *PrometheusProvider) GetWorkloadsWithContext(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+	namespace string,
+) ([]domain.WorkloadMetrics, error) {
+
+	return p.GetWorkloads(
+		ctx,
+		namespace,
+	)
+}
+
 func (p *PrometheusProvider) GetWorkloadHistory(
 	ctx context.Context,
 	namespace string,
@@ -494,4 +507,78 @@ func (p *PrometheusProvider) GetWorkloadHistory(
 		cpuResults,
 		memoryResults,
 	)
+}
+
+func (p *PrometheusProvider) GetWorkloadHistoryWithContext(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+	namespace string,
+	start time.Time,
+	end time.Time,
+	step time.Duration,
+) ([]domain.WorkloadHistory, error) {
+
+	return p.GetWorkloadHistory(
+		ctx,
+		namespace,
+		start,
+		end,
+		step,
+	)
+}
+
+func (p *PrometheusProvider) QueryInstant(
+	ctx context.Context,
+	query string,
+) ([]map[string]string, []float64, error) {
+
+	results, err :=
+		p.query(
+			ctx,
+			query,
+		)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	labels :=
+		make(
+			[]map[string]string,
+			0,
+			len(results),
+		)
+
+	values :=
+		make(
+			[]float64,
+			0,
+			len(results),
+		)
+
+	for _, result := range results {
+
+		value, err :=
+			parsePrometheusValue(
+				result.Value,
+			)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		labels =
+			append(
+				labels,
+				result.Metric,
+			)
+
+		values =
+			append(
+				values,
+				value,
+			)
+	}
+
+	return labels, values, nil
 }

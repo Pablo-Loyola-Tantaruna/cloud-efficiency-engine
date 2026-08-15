@@ -12,3 +12,11 @@ type Provider interface {
 		namespace string,
 	) ([]domain.WorkloadMetrics, error)
 }
+
+type ContextAwareProvider interface {
+	GetWorkloadsWithContext(
+		ctx context.Context,
+		analysisContext domain.AnalysisContext,
+		namespace string,
+	) ([]domain.WorkloadMetrics, error)
+}

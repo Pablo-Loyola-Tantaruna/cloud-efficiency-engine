@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"time"
+
+	"cloud-efficiency-engine/internal/domain"
 )
 
 type Analyzer interface {
@@ -32,17 +34,25 @@ type SchedulerTelemetry interface {
 }
 
 type SchedulerConfig struct {
-	Namespace     string
-	Interval      time.Duration
+	Namespace string
+
+	Context domain.AnalysisContext
+
+	Interval time.Duration
+
 	LookbackHours int
-	Step          time.Duration
+
+	Step time.Duration
 }
 
 type Scheduler struct {
-	engine  Analyzer
+	engine Analyzer
+
 	metrics MetricsSink
-	logger  *slog.Logger
-	config  SchedulerConfig
+
+	logger *slog.Logger
+
+	config SchedulerConfig
 }
 
 func NewScheduler(
@@ -53,10 +63,13 @@ func NewScheduler(
 ) *Scheduler {
 
 	return &Scheduler{
-		engine:  engine,
+		engine: engine,
+
 		metrics: metrics,
-		logger:  logger,
-		config:  config,
+
+		logger: logger,
+
+		config: config,
 	}
 }
 
@@ -101,6 +114,11 @@ func (s *Scheduler) normalizedConfig() SchedulerConfig {
 
 	config :=
 		s.config
+
+	config.Context =
+		domain.NormalizeAnalysisContext(
+			config.Context,
+		)
 
 	if config.Interval <= 0 {
 
@@ -152,6 +170,8 @@ func (s *Scheduler) runOnce(
 				End: end,
 
 				Step: config.Step,
+
+				Context: config.Context,
 			},
 		)
 
@@ -169,6 +189,15 @@ func (s *Scheduler) runOnce(
 
 				"namespace",
 				config.Namespace,
+
+				"provider",
+				config.Context.Provider,
+
+				"environment",
+				config.Context.Environment,
+
+				"region",
+				config.Context.Region,
 
 				"error",
 				err,
@@ -197,6 +226,9 @@ func (s *Scheduler) runOnce(
 
 				"namespace",
 				config.Namespace,
+
+				"provider",
+				config.Context.Provider,
 
 				"error",
 				"analysis returned nil report",
@@ -230,6 +262,15 @@ func (s *Scheduler) runOnce(
 
 			"namespace",
 			config.Namespace,
+
+			"provider",
+			config.Context.Provider,
+
+			"environment",
+			config.Context.Environment,
+
+			"region",
+			config.Context.Region,
 
 			"workloads",
 			report.Summary.TotalWorkloads,
