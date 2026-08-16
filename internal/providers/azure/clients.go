@@ -19,6 +19,8 @@ type Clients struct {
 
 	ManagedClusters *armcontainerservice.ManagedClustersClient
 
+	AgentPools *armcontainerservice.AgentPoolsClient
+
 	CostManagement *armcostmanagement.ClientFactory
 
 	Query *armcostmanagement.QueryClient
@@ -94,6 +96,7 @@ func NewClients(
 		VirtualMachines:     computeFactory.NewVirtualMachinesClient(),
 		VirtualMachineSizes: computeFactory.NewVirtualMachineSizesClient(),
 		ManagedClusters:     containerServiceFactory.NewManagedClustersClient(),
+		AgentPools:          containerServiceFactory.NewAgentPoolsClient(),
 		CostManagement:      costManagementFactory,
 		Query:               costManagementFactory.NewQueryClient(),
 		Monitor:             monitorClient,

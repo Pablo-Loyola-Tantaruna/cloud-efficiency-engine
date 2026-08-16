@@ -55,6 +55,108 @@ jobs:
       - name: Build
         run: go build ./...
 
+  aws-sdk:
+
+    name: AWS SDK Tagged Build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test AWS provider adapter
+        run: go test -tags aws_sdk_v2 ./internal/providers/aws ./internal/analysis/actions
+
+      - name: Build AWS SDK variant
+        run: go build -tags aws_sdk_v2 ./...
+
+  azure-sdk:
+
+    name: Azure SDK Build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test Azure provider adapter
+        run: go test ./internal/providers/azure ./internal/analysis/actions
+
+      - name: Build Azure provider
+        run: go build ./internal/providers/azure
+
+  gcp-sdk:
+
+    name: GCP SDK Build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test GCP provider adapter
+        run: go test ./internal/providers/gcp ./internal/analysis/actions
+
+      - name: Build GCP provider
+        run: go build ./internal/providers/gcp
+
+  provider-contracts:
+
+    name: Provider Contract Tests
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run provider contract tests
+        run: |
+          go test ./internal/providers/aws ./internal/providers/azure ./internal/providers/gcp ./internal/providers/kubernetes
+
   docker:
 
     name: Docker Build
