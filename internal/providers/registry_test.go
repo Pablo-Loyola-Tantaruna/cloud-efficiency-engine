@@ -22,9 +22,19 @@ func (m *metricsProviderMock) GetWorkloads(
 	return nil, nil
 }
 
+func (m *metricsProviderMock) GetWorkloadHistory(
+	ctx context.Context,
+	namespace string,
+	start time.Time,
+	end time.Time,
+	step time.Duration,
+) ([]domain.WorkloadHistory, error) {
+	return nil, nil
+}
+
 type historicalProviderMock struct{}
 
-func (m *metricsProviderMock) GetWorkloadHistory(
+func (m *historicalProviderMock) GetWorkloadHistory(
 	ctx context.Context,
 	namespace string,
 	start time.Time,
@@ -278,6 +288,69 @@ func TestRegistry_ShouldResolveOptionalCapacityProvider(
 	}
 	if bundle.CapacityProvider == nil {
 		t.Fatal("expected capacity provider")
+	}
+}
+
+func TestRegistry_ShouldResolveAllSupportedCloudContracts(t *testing.T) {
+	cloudProviders := []domain.CloudProvider{
+		domain.CloudProviderAWS,
+		domain.CloudProviderAzure,
+		domain.CloudProviderGCP,
+	}
+
+	for _, cloudProvider := range cloudProviders {
+		t.Run(string(cloudProvider), func(t *testing.T) {
+			registry := NewRegistry()
+			metricsProvider := &metricsProviderMock{}
+			pricingProvider := &pricingProviderMock{}
+			billingProvider := &billingProviderMock{}
+			capacityProvider := &capacityProviderMock{}
+
+			registry.RegisterMetricsProvider(
+				cloudProvider,
+				func(analysisContext domain.AnalysisContext) (metrics.Provider, metrics.HistoricalProvider, error) {
+					return metricsProvider, metricsProvider, nil
+				},
+			)
+			registry.RegisterPricingProvider(
+				cloudProvider,
+				func(analysisContext domain.AnalysisContext) (pricing.Provider, error) {
+					return pricingProvider, nil
+				},
+			)
+			registry.RegisterBillingProvider(
+				cloudProvider,
+				func(analysisContext domain.AnalysisContext) (billing.Provider, error) {
+					return billingProvider, nil
+				},
+			)
+			registry.RegisterCapacityProvider(
+				cloudProvider,
+				func(analysisContext domain.AnalysisContext) (capacity.Provider, error) {
+					return capacityProvider, nil
+				},
+			)
+
+			bundle, err := registry.Resolve(
+				context.Background(),
+				domain.AnalysisContext{
+					Provider:    cloudProvider,
+					Environment: "production",
+					Region:      "test-region",
+				},
+			)
+			if err != nil {
+				t.Fatalf("expected %s to resolve, got %v", cloudProvider, err)
+			}
+
+			validateProviderContract(t, providerContractBundle{
+				metrics:  bundle.MetricsProvider,
+				history:  bundle.HistoricalProvider,
+				pricing:  bundle.PricingProvider,
+				billing:  bundle.BillingProvider,
+				capacity: bundle.CapacityProvider,
+			})
+		})
 	}
 }
 
