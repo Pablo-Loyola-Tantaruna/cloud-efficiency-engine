@@ -13,3 +13,10 @@ type Provider interface {
 		analysisContext domain.AnalysisContext,
 	) (cost.ClusterCapacity, error)
 }
+
+type NodeGroupProvider interface {
+	GetNodeGroups(
+		ctx context.Context,
+		analysisContext domain.AnalysisContext,
+	) ([]cost.NodeGroupCapacity, error)
+}

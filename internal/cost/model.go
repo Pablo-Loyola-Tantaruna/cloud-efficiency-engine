@@ -1,5 +1,9 @@
 package cost
 
+import (
+	"cloud-efficiency-engine/internal/domain"
+)
+
 type CostSource string
 
 const (
@@ -22,4 +26,8 @@ type CostBreakdown struct {
 	OtherUSD float64 `json:"otherUsd"`
 
 	TotalUSD float64 `json:"totalUsd"`
+}
+
+func workloadKey(workload domain.WorkloadMetrics) string {
+	return workload.Namespace + "/" + workload.Name
 }

@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"encoding/json"
 	"time"
 
 	"cloud-efficiency-engine/internal/billing"
@@ -16,6 +17,8 @@ type AnalysisReport struct {
 	Summary AnalysisSummary `json:"summary"`
 
 	NamespaceBreakdown []NamespaceCostBreakdown `json:"namespaceBreakdown"`
+
+	TopRecommendations []domain.Recommendation `json:"topRecommendations"`
 
 	Workloads []WorkloadAnalysis `json:"workloads"`
 
@@ -59,3 +62,16 @@ const (
 
 	WorkloadAnalysisStatusInsufficientData = "INSUFFICIENT_DATA"
 )
+
+func (report AnalysisReport) MarshalJSON() ([]byte, error) {
+	type alias AnalysisReport
+
+	copy := alias(report)
+	copy.TopRecommendations = buildTopRecommendations(
+		report.Workloads,
+		report.Context.ClusterName,
+		report.Attribution,
+	)
+
+	return json.Marshal(copy)
+}

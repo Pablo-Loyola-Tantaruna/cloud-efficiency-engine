@@ -17,6 +17,11 @@ type WorkloadMetrics struct {
 
 	Replicas int `json:"replicas"`
 
+	// NodeGroup is populated when the metrics source can identify a unique
+	// node group / node pool for the workload. It remains empty when placement
+	// is unavailable or ambiguous.
+	NodeGroup string `json:"nodeGroup,omitempty"`
+
 	CPURequestMillicores int64 `json:"cpuRequestMillicores"`
 	CPUUsageMillicores   int64 `json:"cpuUsageMillicores"`
 

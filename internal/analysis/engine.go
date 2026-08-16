@@ -550,6 +550,15 @@ func (e *Engine) analyzeWorkload(
 			)
 	}
 
+	if e.costCalculator != nil {
+		recommendations =
+			e.costCalculator.EnrichRecommendations(
+				workload,
+				recommendations,
+				prices,
+			)
+	}
+
 	result.Recommendations =
 		recommendations
 

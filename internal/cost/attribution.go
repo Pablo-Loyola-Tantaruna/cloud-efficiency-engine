@@ -13,7 +13,31 @@ type ClusterCapacity struct {
 
 	MemoryCapacityBytes int64 `json:"memoryCapacityBytes"`
 
+	NodeCount int64 `json:"nodeCount"`
+
 	MonthlyCostUSD float64 `json:"monthlyCostUsd"`
+
+	PricingSource PricingSource `json:"pricingSource,omitempty"`
+
+	NodeGroups []NodeGroupCapacity `json:"nodeGroups,omitempty"`
+}
+
+type NodeGroupCapacity struct {
+	Name string `json:"name"`
+
+	MachineType string `json:"machineType,omitempty"`
+
+	CPUCapacityMillicores int64 `json:"cpuCapacityMillicores"`
+
+	MemoryCapacityBytes int64 `json:"memoryCapacityBytes"`
+
+	NodeCount int64 `json:"nodeCount"`
+
+	MonthlyCostUSD float64 `json:"monthlyCostUsd"`
+
+	HourlyCostUSD float64 `json:"hourlyCostUsd,omitempty"`
+
+	PricingSource PricingSource `json:"pricingSource,omitempty"`
 }
 
 type AllocationWeights struct {

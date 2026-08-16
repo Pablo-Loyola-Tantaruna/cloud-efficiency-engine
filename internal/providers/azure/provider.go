@@ -52,6 +52,13 @@ type CapacityClient interface {
 	) (int64, int64, error)
 }
 
+type nodeCountClient interface {
+	GetNodeCount(
+		ctx context.Context,
+		analysisContext domain.AnalysisContext,
+	) (int64, error)
+}
+
 type Provider struct {
 	metricsClient  MetricsClient
 	pricingClient  PricingClient
@@ -137,7 +144,21 @@ func (p *Provider) GetCapacity(ctx context.Context, analysisContext domain.Analy
 	if err != nil {
 		return cost.ClusterCapacity{}, err
 	}
-	return cost.ClusterCapacity{CPUCapacityMillicores: cpu, MemoryCapacityBytes: memory}, nil
+
+	cluster := cost.ClusterCapacity{
+		CPUCapacityMillicores: cpu,
+		MemoryCapacityBytes:   memory,
+	}
+
+	if nodeClient, ok := p.capacityClient.(nodeCountClient); ok {
+		nodeCount, nodeErr := nodeClient.GetNodeCount(ctx, analysisContext)
+		if nodeErr != nil {
+			return cost.ClusterCapacity{}, nodeErr
+		}
+		cluster.NodeCount = nodeCount
+	}
+
+	return cluster, nil
 }
 
 var _ metrics.Provider = (*Provider)(nil)

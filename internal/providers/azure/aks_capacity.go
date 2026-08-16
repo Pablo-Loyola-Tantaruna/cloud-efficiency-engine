@@ -135,6 +135,47 @@ func (s *AKSCapacitySource) GetCapacity(
 	return cpuMillicores, memoryBytes, nil
 }
 
+func (s *AKSCapacitySource) GetNodeCount(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+) (int64, error) {
+	if s == nil || s.clusters == nil {
+		return 0, fmt.Errorf(
+			"Azure AKS capacity source is not configured",
+		)
+	}
+
+	clusterName := strings.TrimSpace(
+		analysisContext.ClusterName,
+	)
+	if clusterName == "" {
+		return 0, fmt.Errorf(
+			"Azure AKS cluster name must not be empty",
+		)
+	}
+
+	cluster, err := s.clusters.FindCluster(ctx, clusterName)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	for _, pool := range cluster.NodePools {
+		if pool.NodeCount > 0 {
+			count += pool.NodeCount
+		}
+	}
+
+	if count <= 0 {
+		return 0, fmt.Errorf(
+			"Azure AKS cluster %q has no active nodes",
+			clusterName,
+		)
+	}
+
+	return count, nil
+}
+
 type ARMManagedClusterReader struct {
 	client *armcontainerservice.ManagedClustersClient
 }

@@ -38,3 +38,12 @@ type CapacitySource interface {
 		analysisContext domain.AnalysisContext,
 	) (int64, int64, error)
 }
+
+// NodeCountSource is optional so existing capacity sources can remain valid
+// while providers that know their live node count can expose it.
+type NodeCountSource interface {
+	GetNodeCount(
+		ctx context.Context,
+		analysisContext domain.AnalysisContext,
+	) (int64, error)
+}

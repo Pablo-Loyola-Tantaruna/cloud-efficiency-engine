@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"cloud-efficiency-engine/internal/domain"
+	"cloud-efficiency-engine/internal/providers"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	computepb "cloud.google.com/go/compute/apiv1/computepb"
@@ -69,37 +70,38 @@ func NewGKECapacitySource(
 	}, nil
 }
 
-func (s *GKECapacitySource) GetCapacity(
+func (s *GKECapacitySource) loadClusterCapacity(
 	ctx context.Context,
 	analysisContext domain.AnalysisContext,
-) (int64, int64, error) {
+) (int64, int64, int64, error) {
 	if s == nil || s.clusters == nil || s.machineTypes == nil || s.managedGroups == nil {
-		return 0, 0, fmt.Errorf("GCP GKE capacity source is not configured")
+		return 0, 0, 0, fmt.Errorf("GCP GKE capacity source is not configured")
 	}
 
 	projectID := strings.TrimSpace(analysisContext.AccountID)
 	location := strings.TrimSpace(analysisContext.Region)
 	clusterName := strings.TrimSpace(analysisContext.ClusterName)
 	if projectID == "" {
-		return 0, 0, fmt.Errorf("GCP project ID must not be empty in analysis context accountId")
+		return 0, 0, 0, fmt.Errorf("GCP project ID must not be empty in analysis context accountId")
 	}
 	if location == "" {
-		return 0, 0, fmt.Errorf("GCP GKE location must not be empty in analysis context region")
+		return 0, 0, 0, fmt.Errorf("GCP GKE location must not be empty in analysis context region")
 	}
 	if clusterName == "" {
-		return 0, 0, fmt.Errorf("GCP GKE cluster name must not be empty")
+		return 0, 0, 0, fmt.Errorf("GCP GKE cluster name must not be empty")
 	}
 
 	cluster, err := s.clusters.GetCluster(ctx, projectID, location, clusterName)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if cluster == nil {
-		return 0, 0, fmt.Errorf("GCP GKE cluster %q was not found", clusterName)
+		return 0, 0, 0, fmt.Errorf("GCP GKE cluster %q was not found", clusterName)
 	}
 
 	var cpuMillicores int64
 	var memoryBytes int64
+	var nodeCount int64
 
 	for _, pool := range cluster.GetNodePools() {
 		if pool == nil {
@@ -108,18 +110,18 @@ func (s *GKECapacitySource) GetCapacity(
 
 		config := pool.GetConfig()
 		if config == nil {
-			return 0, 0, fmt.Errorf("GCP GKE node pool %q has no config", pool.GetName())
+			return 0, 0, 0, fmt.Errorf("GCP GKE node pool %q has no config", pool.GetName())
 		}
 
 		machineType := strings.TrimSpace(config.GetMachineType())
 		if machineType == "" {
-			return 0, 0, fmt.Errorf("GCP GKE node pool %q has no machine type", pool.GetName())
+			return 0, 0, 0, fmt.Errorf("GCP GKE node pool %q has no machine type", pool.GetName())
 		}
 		machineType = lastPathSegment(machineType)
 
 		instanceGroupURLs := pool.GetInstanceGroupUrls()
 		if len(instanceGroupURLs) == 0 {
-			return 0, 0, fmt.Errorf("GCP GKE node pool %q has no managed instance groups", pool.GetName())
+			return 0, 0, 0, fmt.Errorf("GCP GKE node pool %q has no managed instance groups", pool.GetName())
 		}
 
 		var poolNodes int64
@@ -127,14 +129,14 @@ func (s *GKECapacitySource) GetCapacity(
 		for _, instanceGroupURL := range instanceGroupURLs {
 			groupZone, manager, err := parseZonalInstanceGroupURL(instanceGroupURL)
 			if err != nil {
-				return 0, 0, fmt.Errorf("GCP GKE node pool %q: %w", pool.GetName(), err)
+				return 0, 0, 0, fmt.Errorf("GCP GKE node pool %q: %w", pool.GetName(), err)
 			}
 			if zone == "" {
 				zone = groupZone
 			}
 			count, err := s.managedGroups.CountRunningInstances(ctx, projectID, groupZone, manager)
 			if err != nil {
-				return 0, 0, err
+				return 0, 0, 0, err
 			}
 			poolNodes += count
 		}
@@ -145,20 +147,37 @@ func (s *GKECapacitySource) GetCapacity(
 
 		machine, err := s.machineTypes.GetMachineType(ctx, projectID, zone, machineType)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, 0, err
 		}
 		if machine == nil || machine.GetGuestCpus() <= 0 || machine.GetMemoryMb() <= 0 {
-			return 0, 0, fmt.Errorf("GCP machine type %q has incomplete capacity metadata", machineType)
+			return 0, 0, 0, fmt.Errorf("GCP machine type %q has incomplete capacity metadata", machineType)
 		}
 
 		cpuMillicores += poolNodes * int64(machine.GetGuestCpus()) * 1000
 		memoryBytes += poolNodes * int64(machine.GetMemoryMb()) * 1024 * 1024
+		nodeCount += poolNodes
 	}
 
-	if cpuMillicores == 0 && memoryBytes == 0 {
-		return 0, 0, fmt.Errorf("GCP GKE cluster %q has no active node capacity", clusterName)
+	if cpuMillicores == 0 || memoryBytes == 0 || nodeCount == 0 {
+		return 0, 0, 0, fmt.Errorf("GCP GKE cluster %q has no active node capacity", clusterName)
 	}
-	return cpuMillicores, memoryBytes, nil
+	return cpuMillicores, memoryBytes, nodeCount, nil
+}
+
+func (s *GKECapacitySource) GetCapacity(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+) (int64, int64, error) {
+	cpuMillicores, memoryBytes, _, err := s.loadClusterCapacity(ctx, analysisContext)
+	return cpuMillicores, memoryBytes, err
+}
+
+func (s *GKECapacitySource) GetNodeCount(
+	ctx context.Context,
+	analysisContext domain.AnalysisContext,
+) (int64, error) {
+	_, _, nodeCount, err := s.loadClusterCapacity(ctx, analysisContext)
+	return nodeCount, err
 }
 
 func lastPathSegment(value string) string {
@@ -296,4 +315,5 @@ func (r *GCPManagedInstanceGroupReader) CountRunningInstances(
 var _ GKEClusterReader = (*GKEClusterManagerClientReader)(nil)
 var _ ComputeMachineTypeReader = (*GCPMachineTypeReader)(nil)
 var _ ManagedInstanceGroupReader = (*GCPManagedInstanceGroupReader)(nil)
-var _ CapacityClient = (*GKECapacitySource)(nil)
+var _ providers.CapacitySource = (*GKECapacitySource)(nil)
+var _ providers.NodeCountSource = (*GKECapacitySource)(nil)
