@@ -14,9 +14,11 @@ func ToCPURecommendation(
 	}
 
 	return &domain.Recommendation{
-		Rule:        "CPU_HISTORICAL_OPTIMIZATION",
-		Workload:    workload.Namespace + "/" + workload.Name,
-		Description: recommendation.Reason,
+		Rule:          "CPU_HISTORICAL_OPTIMIZATION",
+		Workload:      workload.Namespace + "/" + workload.Name,
+		WorkloadType:  workload.Type,
+		ContainerName: workload.ContainerName,
+		Description:   recommendation.Reason,
 		Severity: determineSeverity(
 			recommendation.ReductionPercentage,
 		),
@@ -40,9 +42,11 @@ func ToMemoryRecommendation(
 	}
 
 	return &domain.Recommendation{
-		Rule:        "MEMORY_HISTORICAL_OPTIMIZATION",
-		Workload:    workload.Namespace + "/" + workload.Name,
-		Description: recommendation.Reason,
+		Rule:          "MEMORY_HISTORICAL_OPTIMIZATION",
+		Workload:      workload.Namespace + "/" + workload.Name,
+		WorkloadType:  workload.Type,
+		ContainerName: workload.ContainerName,
+		Description:   recommendation.Reason,
 		Severity: determineSeverity(
 			recommendation.ReductionPercentage,
 		),

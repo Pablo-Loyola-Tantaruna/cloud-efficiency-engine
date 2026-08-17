@@ -53,6 +53,11 @@ type Recommendation struct {
 	Severity    Severity   `json:"severity"`
 	Confidence  Confidence `json:"confidence"`
 
+	// WorkloadType and ContainerName identify the exact Kubernetes mutation
+	// target when the recommendation becomes an executable action.
+	WorkloadType  WorkloadType `json:"workloadType,omitempty"`
+	ContainerName string       `json:"containerName,omitempty"`
+
 	CurrentCPURequestMillicores   int64 `json:"currentCpuRequestMillicores,omitempty"`
 	SuggestedCPURequestMillicores int64 `json:"suggestedCpuRequestMillicores,omitempty"`
 

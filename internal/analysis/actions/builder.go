@@ -35,6 +35,8 @@ func FromRecommendation(
 		AnnualizedSavingsUSD: recommendation.AnnualizedSavingsUSD,
 		Risk:                 riskForRecommendation(recommendation),
 		RequiresApproval:     true,
+		WorkloadType:         recommendation.WorkloadType,
+		Container:            recommendation.ContainerName,
 	}
 
 	switch recommendation.Rule {
@@ -66,6 +68,12 @@ func FromRecommendation(
 		return nil, fmt.Errorf("recommendation rule %q cannot be converted to an action", recommendation.Rule)
 	}
 
+	if action.Type == domain.ActionRightsizeWorkloadCPU || action.Type == domain.ActionRightsizeWorkloadMemory {
+		if action.WorkloadType == domain.WorkloadJob {
+			return nil, fmt.Errorf("workload rightsizing is not supported for Job resources")
+		}
+	}
+
 	if err := action.Validate(); err != nil {
 		return nil, err
 	}
@@ -73,7 +81,7 @@ func FromRecommendation(
 }
 
 func actionID(recommendation domain.Recommendation, provider domain.CloudProvider, cluster string) string {
-	seed := fmt.Sprintf("%s|%s|%s|%s|%d|%d", provider, cluster, recommendation.Rule, recommendation.Workload, recommendation.CurrentNodeCount, recommendation.SuggestedNodeCount)
+	seed := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%d", provider, cluster, recommendation.Rule, recommendation.Workload, recommendation.WorkloadType, recommendation.ContainerName, recommendation.CurrentNodeCount, recommendation.SuggestedNodeCount)
 	sum := sha256.Sum256([]byte(seed))
 	return hex.EncodeToString(sum[:8])
 }

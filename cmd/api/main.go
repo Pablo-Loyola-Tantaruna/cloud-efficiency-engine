@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cloud-efficiency-engine/internal/analysis"
+	"cloud-efficiency-engine/internal/analysis/actions"
 	"cloud-efficiency-engine/internal/analysis/optimizer"
 	"cloud-efficiency-engine/internal/analysis/resolver"
 	"cloud-efficiency-engine/internal/analysis/rules"
@@ -18,6 +19,7 @@ import (
 	rediscache "cloud-efficiency-engine/internal/cache/redis"
 	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
+	kubeclient "cloud-efficiency-engine/internal/kubernetes"
 	metricproviders "cloud-efficiency-engine/internal/metrics/providers"
 	"cloud-efficiency-engine/internal/observability"
 	postgrespersistence "cloud-efficiency-engine/internal/persistence/postgres"
@@ -134,7 +136,8 @@ func main() {
 	observabilityMetrics := observability.NewMetrics()
 
 	handler := api.NewHandler(engine, analysisMetrics)
-	finOpsHandler := initializeFinOpsHandler(persistencePool, redisClient)
+	workloadExecutor := initializeWorkloadExecutor(logger)
+	finOpsHandler := initializeFinOpsHandler(persistencePool, redisClient, workloadExecutor)
 	var router http.Handler
 	if authMiddleware != nil {
 		router = api.NewSecureFinOpsRouter(
@@ -258,7 +261,20 @@ func initializeRedis(logger interface{ Warn(string, ...any) }) *rediscache.Clien
 	return client
 }
 
-func initializeFinOpsHandler(pool *pgxpool.Pool, redisClient *rediscache.Client) *api.FinOpsHandler {
+func initializeWorkloadExecutor(logger interface{ Warn(string, ...any) }) *kubernetesprovider.WorkloadExecutor {
+	client, err := kubeclient.NewClientFromEnv()
+	if errors.Is(err, kubeclient.ErrNotConfigured) {
+		logger.Warn("workload_execution_disabled", "warning", "FINOPS_KUBECONFIG or in-cluster Kubernetes configuration is not available")
+		return nil
+	}
+	if err != nil {
+		logger.Warn("kubernetes_client_initialization_failed", "error", err)
+		return nil
+	}
+	return kubernetesprovider.NewWorkloadExecutor(client)
+}
+
+func initializeFinOpsHandler(pool *pgxpool.Pool, redisClient *rediscache.Client, workloadExecutor *kubernetesprovider.WorkloadExecutor) *api.FinOpsHandler {
 	if pool == nil {
 		return nil
 	}
@@ -266,6 +282,20 @@ func initializeFinOpsHandler(pool *pgxpool.Pool, redisClient *rediscache.Client)
 	if err != nil {
 		return nil
 	}
+
+	var executionEngine *actions.ExecutionEngine
+	if workloadExecutor != nil {
+		executionService := actions.NewExecutionService(repositories.Execution)
+		resolver := providerregistry.NewStaticExecutorResolver(map[domain.CloudProvider]domain.ProviderExecutor{
+			domain.CloudProviderAWS:        workloadExecutor,
+			domain.CloudProviderAzure:      workloadExecutor,
+			domain.CloudProviderGCP:        workloadExecutor,
+			domain.CloudProviderKubernetes: workloadExecutor,
+		})
+		verifier := actions.NewVerificationService(workloadExecutor)
+		executionEngine = actions.NewExecutionEngine(executionService, resolver, verifier)
+	}
+
 	return api.NewFinOpsHandler(
 		repositories.ActionPlan,
 		repositories.Approval,
@@ -273,7 +303,7 @@ func initializeFinOpsHandler(pool *pgxpool.Pool, redisClient *rediscache.Client)
 		repositories.Execution,
 		repositories.Audit,
 		repositories.Verification,
-		nil,
+		executionEngine,
 		redisClient,
 	)
 }

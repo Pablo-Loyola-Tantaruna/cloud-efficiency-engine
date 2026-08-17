@@ -26,6 +26,11 @@ type Action struct {
 	NodeGroup string        `json:"nodeGroup,omitempty"`
 	Workload  string        `json:"workload,omitempty"`
 
+	// WorkloadType identifies the Kubernetes API object to mutate. It is
+	// optional for legacy actions and required by the workload executor.
+	WorkloadType WorkloadType `json:"workloadType,omitempty"`
+	Container    string       `json:"container,omitempty"`
+
 	CurrentValue int64 `json:"currentValue"`
 	DesiredValue int64 `json:"desiredValue"`
 

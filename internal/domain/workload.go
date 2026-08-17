@@ -15,6 +15,11 @@ type WorkloadMetrics struct {
 	Name      string       `json:"name"`
 	Type      WorkloadType `json:"type"`
 
+	// ContainerName is populated when the metrics source can identify a unique
+	// target container. It remains empty for multi-container workloads where
+	// the aggregate metrics cannot safely identify a mutation target.
+	ContainerName string `json:"containerName,omitempty"`
+
 	Replicas int `json:"replicas"`
 
 	// NodeGroup is populated when the metrics source can identify a unique
