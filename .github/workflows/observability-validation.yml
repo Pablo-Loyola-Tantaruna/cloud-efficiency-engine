@@ -1,0 +1,56 @@
+name: Observability Validation
+
+on:
+  push:
+    branches:
+      - feature/finops-observability
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  validate-observability:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.26.6"
+          cache: false
+
+      - name: Compile live cloud E2E suite
+        run: |
+          go test -tags "live_e2e aws_sdk_v2" ./test/e2e -run '^$' -count=1
+
+      - name: Validate Docker Compose
+        run: docker compose -f docker-compose.yml -f docker-compose.observability.yml config --quiet
+
+      - name: Validate Prometheus configuration
+        run: |
+          docker run --rm \
+            --entrypoint promtool \
+            -v "$PWD/deployments/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.5.0 \
+            check config /etc/prometheus/prometheus.yml
+          docker run --rm \
+            --entrypoint promtool \
+            -v "$PWD/deployments/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.5.0 \
+            check rules /etc/prometheus/recording-rules.yml /etc/prometheus/alerts.yml
+
+      - name: Validate OpenTelemetry Collector configuration
+        run: |
+          docker run --rm \
+            -v "$PWD/deployments/observability:/etc/otel:ro" \
+            otel/opentelemetry-collector-contrib:0.157.0 \
+            validate --config=/etc/otel/otel-collector.yaml
+
+      - name: Validate Grafana dashboard JSON
+        run: |
+          python -m json.tool deployments/observability/grafana/dashboards/finops-overview.json >/dev/null

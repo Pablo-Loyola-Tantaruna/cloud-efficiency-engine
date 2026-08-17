@@ -1,0 +1,62 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Execution rate",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (provider, outcome) (rate(cee_execution_total[5m]))", "legendFormat": "{{provider}} / {{outcome}}"}],
+      "fieldConfig": {"defaults": {"unit": "ops/s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Execution p95 latency",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, provider, action) (rate(cee_execution_duration_seconds_bucket[10m])))", "legendFormat": "{{provider}} / {{action}}"}],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Verification success ratio",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(rate(cee_verification_total{outcome=\"success\"}[10m])) / clamp_min(sum(rate(cee_verification_total[10m])), 0.000001)", "legendFormat": "success ratio"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Provider operation p95",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, provider, operation) (rate(cee_provider_operation_duration_seconds_bucket[10m])))", "legendFormat": "{{provider}} / {{operation}}"}],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Potential monthly savings",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (namespace) (cee_potential_savings_usd)", "legendFormat": "{{namespace}}"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Realized monthly savings",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (provider, action) (increase(cee_realized_savings_monthly_usd_total[30d]))", "legendFormat": "{{provider}} / {{action}}"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []}
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["finops", "cloud-efficiency-engine", "observability"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "Cloud Efficiency Engine - FinOps",
+  "uid": "cee-finops",
+  "version": 2
+}

@@ -1,0 +1,102 @@
+name: Live FinOps E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Cloud provider to exercise against a real cluster
+        required: true
+        type: choice
+        options:
+          - aws
+          - azure
+          - gcp
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  aws:
+    if: inputs.provider == 'aws'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.26.6"
+          cache: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.FINOPS_E2E_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.FINOPS_E2E_AWS_REGION }}
+
+      - name: Run AWS live E2E
+        env:
+          FINOPS_E2E_ALLOW_MUTATION: "true"
+          AWS_E2E_REGION: ${{ vars.FINOPS_E2E_AWS_REGION }}
+          AWS_E2E_CLUSTER: ${{ vars.FINOPS_E2E_AWS_CLUSTER }}
+          AWS_E2E_NODE_GROUP: ${{ vars.FINOPS_E2E_AWS_NODE_GROUP }}
+        run: go test -tags "live_e2e aws_sdk_v2" ./test/e2e -run TestLiveAWSEKSFinOpsLifecycle -count=1 -v
+
+  azure:
+    if: inputs.provider == 'azure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.26.6"
+          cache: true
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.FINOPS_E2E_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.FINOPS_E2E_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.FINOPS_E2E_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Azure live E2E
+        env:
+          FINOPS_E2E_ALLOW_MUTATION: "true"
+          AZURE_E2E_SUBSCRIPTION_ID: ${{ secrets.FINOPS_E2E_AZURE_SUBSCRIPTION_ID }}
+          AZURE_E2E_RESOURCE_GROUP: ${{ vars.FINOPS_E2E_AZURE_RESOURCE_GROUP }}
+          AZURE_E2E_CLUSTER: ${{ vars.FINOPS_E2E_AZURE_CLUSTER }}
+          AZURE_E2E_NODE_POOL: ${{ vars.FINOPS_E2E_AZURE_NODE_POOL }}
+        run: go test -tags "live_e2e" ./test/e2e -run TestLiveAzureAKSFinOpsLifecycle -count=1 -v
+
+  gcp:
+    if: inputs.provider == 'gcp'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.26.6"
+          cache: true
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.FINOPS_E2E_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.FINOPS_E2E_GCP_SERVICE_ACCOUNT }}
+
+      - name: Run GCP live E2E
+        env:
+          FINOPS_E2E_ALLOW_MUTATION: "true"
+          GCP_E2E_PROJECT_ID: ${{ vars.FINOPS_E2E_GCP_PROJECT_ID }}
+          GCP_E2E_LOCATION: ${{ vars.FINOPS_E2E_GCP_LOCATION }}
+          GCP_E2E_CLUSTER: ${{ vars.FINOPS_E2E_GCP_CLUSTER }}
+          GCP_E2E_NODE_POOL: ${{ vars.FINOPS_E2E_GCP_NODE_POOL }}
+        run: go test -tags "live_e2e" ./test/e2e -run TestLiveGCPGKEFinOpsLifecycle -count=1 -v

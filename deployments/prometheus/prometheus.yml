@@ -4,11 +4,22 @@ global:
 
 rule_files:
   - /etc/prometheus/recording-rules.yml
+  - /etc/prometheus/alerts.yml
 
 scrape_configs:
-
   - job_name: prometheus
-
     static_configs:
       - targets:
           - localhost:9090
+
+  - job_name: cloud-efficiency-engine-http
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - cloud-efficiency-engine:8080
+
+  - job_name: cloud-efficiency-engine-finops
+    metrics_path: /metrics/finops
+    static_configs:
+      - targets:
+          - cloud-efficiency-engine:8080

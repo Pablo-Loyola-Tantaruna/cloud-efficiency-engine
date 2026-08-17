@@ -1,0 +1,40 @@
+groups:
+  - name: cloud-efficiency-engine-slos
+    interval: 30s
+    rules:
+      - alert: CEEExecutionSuccessRateLow
+        expr: |
+          (
+            sum(rate(cee_execution_total{outcome="success"}[15m]))
+            /
+            clamp_min(sum(rate(cee_execution_total[15m])), 0.000001)
+          ) < 0.99
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: FinOps execution success rate is below 99%
+          description: The execution success rate has remained below 99% for at least 10 minutes.
+
+      - alert: CEEVerificationFailureRateHigh
+        expr: |
+          (
+            sum(rate(cee_verification_total{outcome!="success"}[15m]))
+            /
+            clamp_min(sum(rate(cee_verification_total[15m])), 0.000001)
+          ) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: FinOps verification failure rate is above 1%
+          description: Verification failures exceed 1% of verification attempts over a sustained 15 minute window.
+
+      - alert: CEESchedulerFailures
+        expr: sum(rate(cee_scheduler_failure_total[15m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Scheduled analysis is failing
+          description: The FinOps scheduler has recorded failures during the last 10 minutes.

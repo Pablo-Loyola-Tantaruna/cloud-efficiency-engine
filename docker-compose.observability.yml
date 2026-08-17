@@ -1,0 +1,75 @@
+services:
+  cloud-efficiency-engine:
+    environment:
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: cloud-efficiency-engine
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "0.10"
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.157.0
+    container_name: cloud-efficiency-engine-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    environment:
+      ANALYSIS_ENVIRONMENT: development
+    volumes:
+      - ./deployments/observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "13133:13133"
+    depends_on:
+      tempo:
+        condition: service_started
+
+  tempo:
+    image: grafana/tempo:2.10.7
+    container_name: cloud-efficiency-engine-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./deployments/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - cloud-efficiency-engine-tempo:/tmp/tempo
+    ports:
+      - "3200:3200"
+      - "4319:4317"
+
+  loki:
+    image: grafana/loki:3.7.2
+    container_name: cloud-efficiency-engine-loki
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./deployments/observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - cloud-efficiency-engine-loki:/loki
+    ports:
+      - "3100:3100"
+
+  grafana:
+    image: grafana/grafana:13.1.0
+    container_name: cloud-efficiency-engine-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - cloud-efficiency-engine-grafana:/var/lib/grafana
+      - ./deployments/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployments/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+
+volumes:
+  cloud-efficiency-engine-tempo:
+  cloud-efficiency-engine-loki:
+  cloud-efficiency-engine-grafana:

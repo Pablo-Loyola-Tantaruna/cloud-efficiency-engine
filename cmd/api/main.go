@@ -44,6 +44,16 @@ const (
 func main() {
 	logger := api.NewLogger()
 
+	tracingShutdown, tracingErr := observability.InitTracing(context.Background(), "cloud-efficiency-engine")
+	if tracingErr != nil {
+		logger.Warn("tracing_initialization_failed", "error", tracingErr)
+	}
+	defer func() {
+		if err := tracingShutdown(context.Background()); err != nil {
+			logger.Warn("tracing_shutdown_failed", "error", err)
+		}
+	}()
+
 	optimizationRules := []rules.Rule{
 		rules.NewCPUOverprovisioningRule(),
 		rules.NewMemoryOverprovisioningRule(),
