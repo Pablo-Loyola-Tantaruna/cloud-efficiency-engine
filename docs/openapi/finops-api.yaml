@@ -1,0 +1,256 @@
+openapi: 3.0.3
+info:
+  title: Cloud Efficiency Engine - FinOps API
+  version: 1.0.0
+  description: Control-plane API for FinOps action plans, approvals, dry-runs, executions, verification and recovery state.
+servers:
+  - url: /api/v1
+paths:
+  /action-plans:
+    post:
+      summary: Create an action plan
+      operationId: createActionPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActionPlanRequest' }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /action-plans/{planId}:
+    get:
+      summary: Get an action plan
+      operationId: getActionPlan
+      parameters: [ { $ref: '#/components/parameters/PlanId' } ]
+      responses:
+        '200': { description: Action plan }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /action-plans/{planId}/submit:
+    post:
+      summary: Submit a preview plan for approval
+      operationId: submitActionPlan
+      parameters: [ { $ref: '#/components/parameters/PlanId' } ]
+      responses:
+        '200': { description: Plan pending approval }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /action-plans/{planId}/approve:
+    post:
+      summary: Approve an action plan
+      operationId: approveActionPlan
+      parameters: [ { $ref: '#/components/parameters/PlanId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalRequest' }
+      responses:
+        '200': { description: Approved and ready-to-apply plan }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /action-plans/{planId}/dry-run:
+    post:
+      summary: Generate an execution preview without changing infrastructure
+      operationId: dryRunActionPlan
+      parameters: [ { $ref: '#/components/parameters/PlanId' } ]
+      responses:
+        '200': { description: Execution preview }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /action-plans/{planId}/execute:
+    post:
+      summary: Execute an approved action when a provider execution runtime is configured
+      operationId: executeActionPlan
+      parameters: [ { $ref: '#/components/parameters/PlanId' } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actionId: { type: string }
+      responses:
+        '200': { description: Execution result and verification result }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /executions/{executionId}:
+    get:
+      summary: Get an execution record
+      operationId: getExecution
+      parameters: [ { $ref: '#/components/parameters/ExecutionId' } ]
+      responses:
+        '200': { description: Execution record }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /executions/{executionId}/history:
+    get:
+      summary: Get all attempts for an execution idempotency key
+      operationId: getExecutionHistory
+      parameters: [ { $ref: '#/components/parameters/ExecutionId' } ]
+      responses:
+        '200': { description: Ordered execution attempts }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /executions/{executionId}/verification:
+    get:
+      summary: Get execution verification
+      operationId: getVerification
+      parameters: [ { $ref: '#/components/parameters/ExecutionId' } ]
+      responses:
+        '200': { description: Verification result }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /executions/{executionId}/audit:
+    get:
+      summary: Get the execution audit trail
+      operationId: getExecutionAudit
+      parameters: [ { $ref: '#/components/parameters/ExecutionId' } ]
+      responses:
+        '200': { description: Audit events }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /recovery/{recoveryId}:
+    get:
+      summary: Get recovery state
+      operationId: getRecovery
+      parameters: [ { $ref: '#/components/parameters/RecoveryId' } ]
+      responses:
+        '200': { description: Recovery action state }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  parameters:
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema: { type: string }
+    ExecutionId:
+      name: executionId
+      in: path
+      required: true
+      schema: { type: string }
+    RecoveryId:
+      name: recoveryId
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    Action:
+      type: object
+      required: [id, type, provider, cluster, currentValue, desiredValue, monthlySavingsUsd, annualizedSavingsUsd, requiresApproval]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        provider: { type: string }
+        cluster: { type: string }
+        nodeGroup: { type: string }
+        workload: { type: string }
+        currentValue: { type: integer, format: int64 }
+        desiredValue: { type: integer, format: int64 }
+        monthlySavingsUsd: { type: number, format: double }
+        annualizedSavingsUsd: { type: number, format: double }
+        risk: { type: string }
+        requiresApproval: { type: boolean }
+    ActionPlanRequest:
+      type: object
+      required: [provider, cluster, actions]
+      properties:
+        provider: { type: string }
+        cluster: { type: string }
+        actions: { type: array, items: { $ref: '#/components/schemas/Action' } }
+    ApprovalRequest:
+      type: object
+      required: [approvedBy]
+      properties:
+        approvedBy: { type: string }
+        comment: { type: string }
+    ExecutionRecord:
+      type: object
+      properties:
+        id: { type: string }
+        idempotencyKey: { type: string }
+        planId: { type: string }
+        actionId: { type: string }
+        provider: { type: string }
+        cluster: { type: string }
+        status: { type: string }
+        attempt: { type: integer }
+        currentValue: { type: integer, format: int64 }
+        desiredValue: { type: integer, format: int64 }
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        result: { type: string }
+        error: { type: string }
+    ExecutionPlan:
+      type: object
+      properties:
+        planId: { type: string }
+        mode: { type: string }
+        provider: { type: string }
+        cluster: { type: string }
+        operations: { type: array, items: { type: object } }
+        totalMonthlySavingsUsd: { type: number, format: double }
+    VerificationResult:
+      type: object
+      properties:
+        id: { type: string }
+        executionId: { type: string }
+        status: { type: string }
+        expectedValue: { type: integer, format: int64 }
+        actualValue: { type: integer, format: int64 }
+        verifiedAt: { type: string, format: date-time }
+        message: { type: string }
+        error: { type: string }
+    RecoveryAction:
+      type: object
+      properties:
+        id: { type: string }
+        planId: { type: string }
+        actionId: { type: string }
+        executionId: { type: string }
+        provider: { type: string }
+        cluster: { type: string }
+        resource: { type: string }
+        fromValue: { type: integer, format: int64 }
+        toValue: { type: integer, format: int64 }
+        reason: { type: string }
+        status: { type: string }
+        requiresApproval: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    ApiError:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Conflict:
+      description: Invalid lifecycle state or concurrent operation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    ServiceUnavailable:
+      description: Required runtime dependency is unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }

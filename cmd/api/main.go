@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,17 +15,19 @@ import (
 	"cloud-efficiency-engine/internal/analysis/resolver"
 	"cloud-efficiency-engine/internal/analysis/rules"
 	"cloud-efficiency-engine/internal/api"
+	rediscache "cloud-efficiency-engine/internal/cache/redis"
 	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
+	metricproviders "cloud-efficiency-engine/internal/metrics/providers"
 	"cloud-efficiency-engine/internal/observability"
 	postgrespersistence "cloud-efficiency-engine/internal/persistence/postgres"
 	providerregistry "cloud-efficiency-engine/internal/providers"
-
-	metricproviders "cloud-efficiency-engine/internal/metrics/providers"
 	awsprovider "cloud-efficiency-engine/internal/providers/aws"
 	azureprovider "cloud-efficiency-engine/internal/providers/azure"
 	gcpprovider "cloud-efficiency-engine/internal/providers/gcp"
 	kubernetesprovider "cloud-efficiency-engine/internal/providers/kubernetes"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -56,6 +59,11 @@ func main() {
 	if persistencePool != nil {
 		defer persistencePool.Close()
 		logger.Info("persistence_ready")
+	}
+
+	redisClient := initializeRedis(logger)
+	if redisClient != nil {
+		defer redisClient.Close()
 	}
 
 	prometheusProvider := metricproviders.NewPrometheusProvider(getPrometheusURL(), nil)
@@ -116,11 +124,13 @@ func main() {
 	observabilityMetrics := observability.NewMetrics()
 
 	handler := api.NewHandler(engine, analysisMetrics)
-	router := api.NewRouter(
+	finOpsHandler := initializeFinOpsHandler(persistencePool, redisClient)
+	router := api.NewFinOpsRouter(
 		handler,
 		logger,
 		httpMetrics,
 		analysisMetrics,
+		finOpsHandler,
 		observabilityMetrics.Handler(),
 	)
 
@@ -184,7 +194,7 @@ func main() {
 	logger.Info("shutdown_completed")
 }
 
-func initializePersistence() (interface{ Close() }, error) {
+func initializePersistence() (*pgxpool.Pool, error) {
 	if os.Getenv("DATABASE_URL") == "" {
 		return nil, nil
 	}
@@ -204,6 +214,45 @@ func initializePersistence() (interface{ Close() }, error) {
 		return nil, fmt.Errorf("apply persistence migrations: %w", err)
 	}
 	return pool, nil
+}
+
+func initializeRedis(logger interface{ Warn(string, ...any) }) *rediscache.Client {
+	client, err := rediscache.NewFromEnv()
+	if errors.Is(err, rediscache.ErrNotConfigured) {
+		return nil
+	}
+	if err != nil {
+		logger.Warn("redis_initialization_failed", "error", err)
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx); err != nil {
+		logger.Warn("redis_unavailable", "error", err)
+		_ = client.Close()
+		return nil
+	}
+	return client
+}
+
+func initializeFinOpsHandler(pool *pgxpool.Pool, redisClient *rediscache.Client) *api.FinOpsHandler {
+	if pool == nil {
+		return nil
+	}
+	repositories, err := postgrespersistence.NewRepositories(pool)
+	if err != nil {
+		return nil
+	}
+	return api.NewFinOpsHandler(
+		repositories.ActionPlan,
+		repositories.Approval,
+		repositories.Recovery,
+		repositories.Execution,
+		repositories.Audit,
+		repositories.Verification,
+		nil,
+		redisClient,
+	)
 }
 
 func loadAnalysisContext() domain.AnalysisContext {
