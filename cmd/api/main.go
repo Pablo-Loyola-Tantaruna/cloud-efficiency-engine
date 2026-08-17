@@ -17,6 +17,7 @@ import (
 	"cloud-efficiency-engine/internal/cost"
 	"cloud-efficiency-engine/internal/domain"
 	"cloud-efficiency-engine/internal/observability"
+	postgrespersistence "cloud-efficiency-engine/internal/persistence/postgres"
 	providerregistry "cloud-efficiency-engine/internal/providers"
 
 	metricproviders "cloud-efficiency-engine/internal/metrics/providers"
@@ -46,6 +47,16 @@ func main() {
 	recommendationResolver := resolver.NewResolver()
 	analysisContext := loadAnalysisContext()
 	registry := providerregistry.NewRegistry()
+
+	persistencePool, err := initializePersistence()
+	if err != nil {
+		logger.Error("persistence_initialization_failed", "error", err)
+		return
+	}
+	if persistencePool != nil {
+		defer persistencePool.Close()
+		logger.Info("persistence_ready")
+	}
 
 	prometheusProvider := metricproviders.NewPrometheusProvider(getPrometheusURL(), nil)
 	kubernetesCapacitySource := kubernetesprovider.NewCapacitySource(prometheusProvider)
@@ -171,6 +182,28 @@ func main() {
 	}
 
 	logger.Info("shutdown_completed")
+}
+
+func initializePersistence() (interface{ Close() }, error) {
+	if os.Getenv("DATABASE_URL") == "" {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	cfg, err := postgrespersistence.ConfigFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	pool, err := postgrespersistence.NewPool(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := postgrespersistence.ApplyMigrations(ctx, pool); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("apply persistence migrations: %w", err)
+	}
+	return pool, nil
 }
 
 func loadAnalysisContext() domain.AnalysisContext {
