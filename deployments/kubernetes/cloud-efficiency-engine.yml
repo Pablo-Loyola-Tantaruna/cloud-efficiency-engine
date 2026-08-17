@@ -22,10 +22,24 @@ spec:
         app.kubernetes.io/part-of: cloud-efficiency-engine
 
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
         - name: cloud-efficiency-engine
           image: cloud-efficiency-engine:dev
           imagePullPolicy: IfNotPresent
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
 
           ports:
             - name: http
@@ -54,6 +68,10 @@ spec:
               cpu: "500m"
               memory: "512Mi"
 
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
           readinessProbe:
             httpGet:
               path: /ready
@@ -71,3 +89,7 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 3
             failureThreshold: 3
+
+      volumes:
+        - name: tmp
+          emptyDir: {}

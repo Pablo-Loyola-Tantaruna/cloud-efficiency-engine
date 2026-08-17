@@ -14,13 +14,9 @@ permissions:
   contents: read
 
 jobs:
-
   test:
-
     name: Go Test
-
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:16
@@ -35,7 +31,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-
       redis:
         image: redis:8.2-alpine
         ports:
@@ -45,169 +40,117 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/finops_test?sslmode=disable
       DB_MAX_CONNS: 10
       DB_MIN_CONNS: 2
       REDIS_ADDR: localhost:6379
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.25.5"
+          go-version: "1.26.6"
           cache: true
-
       - name: Check formatting
         shell: bash
-        run: |
-          test -z "$(gofmt -l .)"
-
+        run: test -z "$(gofmt -l .)"
       - name: Download dependencies
         run: go mod download
-
       - name: Verify dependencies
         run: go mod verify
-
       - name: PostgreSQL persistence integration
         run: go test ./internal/persistence/postgres -count=1
-
       - name: Redis cache integration
         run: go test ./internal/cache/redis -count=1
-
       - name: Unit and integration tests
         run: go test ./...
-
       - name: Race detector
         run: go test -race ./...
-
       - name: Static analysis
         run: go vet ./...
-
       - name: Build
         run: go build ./...
 
   aws-sdk:
-
     name: AWS SDK Tagged Build
-
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.25.5"
+          go-version: "1.26.6"
           cache: true
-
       - name: Download dependencies
         run: go mod download
-
       - name: Test AWS provider adapter
         run: go test -tags aws_sdk_v2 ./internal/providers/aws ./internal/analysis/actions
-
       - name: Build AWS SDK variant
         run: go build -tags aws_sdk_v2 ./...
 
   azure-sdk:
-
     name: Azure SDK Build
-
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.25.5"
+          go-version: "1.26.6"
           cache: true
-
       - name: Download dependencies
         run: go mod download
-
       - name: Test Azure provider adapter
         run: go test ./internal/providers/azure ./internal/analysis/actions
-
       - name: Build Azure provider
         run: go build ./internal/providers/azure
 
   gcp-sdk:
-
     name: GCP SDK Build
-
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.25.5"
+          go-version: "1.26.6"
           cache: true
-
       - name: Download dependencies
         run: go mod download
-
       - name: Test GCP provider adapter
         run: go test ./internal/providers/gcp ./internal/analysis/actions
-
       - name: Build GCP provider
         run: go build ./internal/providers/gcp
 
   provider-contracts:
-
     name: Provider Contract Tests
-
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.25.5"
+          go-version: "1.26.6"
           cache: true
-
       - name: Download dependencies
         run: go mod download
-
       - name: Run provider contract tests
-        run: |
-          go test ./internal/providers/aws ./internal/providers/azure ./internal/providers/gcp ./internal/providers/kubernetes
+        run: go test ./internal/providers/aws ./internal/providers/azure ./internal/providers/gcp ./internal/providers/kubernetes
 
   docker:
-
     name: Docker Build
-
     runs-on: ubuntu-latest
-
     needs:
       - test
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Build Docker image
         run: |
           docker build \
@@ -215,31 +158,17 @@ jobs:
             .
 
   helm:
-
     name: Helm Validation
-
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Setup Helm
         uses: azure/setup-helm@v4
-
       - name: Helm lint
-        run: |
-          helm lint \
-            deployments/helm/cloud-efficiency-engine
-
+        run: helm lint deployments/helm/cloud-efficiency-engine
       - name: Helm template
-        run: |
-          helm template \
-            cloud-efficiency-engine \
-            deployments/helm/cloud-efficiency-engine \
-            --namespace cloud-efficiency-engine
-
+        run: helm template cloud-efficiency-engine deployments/helm/cloud-efficiency-engine --namespace cloud-efficiency-engine
       - name: Helm template validation
         run: |
           helm template \
@@ -247,5 +176,4 @@ jobs:
             deployments/helm/cloud-efficiency-engine \
             --namespace cloud-efficiency \
             > rendered.yaml
-
           test -s rendered.yaml

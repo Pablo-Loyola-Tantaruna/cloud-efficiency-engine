@@ -24,12 +24,26 @@ spec:
         app: payments-api
 
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
 
       containers:
 
         - name: payments-api
 
-          image: nginx:1.27-alpine
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
 
           resources:
 
@@ -42,7 +56,19 @@ spec:
               memory: "2Gi"
 
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
 
 ---
 
@@ -72,12 +98,26 @@ spec:
         app: orders-api
 
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
 
       containers:
 
         - name: orders-api
 
-          image: nginx:1.27-alpine
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
 
           resources:
 
@@ -90,4 +130,16 @@ spec:
               memory: "2Gi"
 
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}

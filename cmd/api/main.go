@@ -26,6 +26,7 @@ import (
 	azureprovider "cloud-efficiency-engine/internal/providers/azure"
 	gcpprovider "cloud-efficiency-engine/internal/providers/gcp"
 	kubernetesprovider "cloud-efficiency-engine/internal/providers/kubernetes"
+	"cloud-efficiency-engine/internal/security"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -64,6 +65,15 @@ func main() {
 	redisClient := initializeRedis(logger)
 	if redisClient != nil {
 		defer redisClient.Close()
+	}
+
+	authMiddleware, authErr := security.MiddlewareFromEnv()
+	if authErr != nil && !errors.Is(authErr, security.ErrAuthenticationDisabled) {
+		logger.Error("security_initialization_failed", "error", authErr)
+		return
+	}
+	if errors.Is(authErr, security.ErrAuthenticationDisabled) {
+		logger.Warn("finops_authentication_disabled", "warning", "explicit FINOPS_AUTH_MODE=disabled")
 	}
 
 	prometheusProvider := metricproviders.NewPrometheusProvider(getPrometheusURL(), nil)
@@ -125,14 +135,27 @@ func main() {
 
 	handler := api.NewHandler(engine, analysisMetrics)
 	finOpsHandler := initializeFinOpsHandler(persistencePool, redisClient)
-	router := api.NewFinOpsRouter(
-		handler,
-		logger,
-		httpMetrics,
-		analysisMetrics,
-		finOpsHandler,
-		observabilityMetrics.Handler(),
-	)
+	var router http.Handler
+	if authMiddleware != nil {
+		router = api.NewSecureFinOpsRouter(
+			handler,
+			logger,
+			httpMetrics,
+			analysisMetrics,
+			finOpsHandler,
+			authMiddleware,
+			observabilityMetrics.Handler(),
+		)
+	} else {
+		router = api.NewFinOpsRouter(
+			handler,
+			logger,
+			httpMetrics,
+			analysisMetrics,
+			finOpsHandler,
+			observabilityMetrics.Handler(),
+		)
+	}
 
 	server := &http.Server{
 		Addr:              ":8080",

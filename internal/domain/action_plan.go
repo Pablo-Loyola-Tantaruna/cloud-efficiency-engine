@@ -15,6 +15,7 @@ const (
 
 type ActionPlan struct {
 	ID                        string           `json:"id"`
+	TenantID                  string           `json:"tenantId"`
 	Provider                  CloudProvider    `json:"provider"`
 	Cluster                   string           `json:"cluster"`
 	Status                    ActionPlanStatus `json:"status"`
